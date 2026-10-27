@@ -10,7 +10,7 @@
     "pipeline": "pnpm -C packages/pipeline start"
   },
   "devDependencies": {
-    "turbo": "^2.6.3",
+    "turbo": "^2.11.10",
     "typescript": "catalog:",
     "vitest": "^4.1.9"
   },

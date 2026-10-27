@@ -5,10 +5,15 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",
+    "start:agenda": "tsx src/main-agenda.ts",
+    "start:perfis": "tsx src/main-perfis.ts",
+    "validar": "tsx src/main-validar.ts",
     "check-types": "tsc --noEmit --pretty false"
   },
   "dependencies": {
     "@politicapp/data": "workspace:*",
+    "@politicapp/sources": "workspace:*",
+    "date-fns": "^4.4.0",
     "fast-xml-parser": "^5.2.5",
     "fflate": "^0.8.2",
     "zod": "catalog:"

@@ -1,0 +1,22 @@
+{
+  "name": "@politicapp/sources",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@politicapp/data": "workspace:*",
+    "date-fns": "^4.4.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

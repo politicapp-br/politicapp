@@ -1,0 +1,89 @@
+name: Branch de dados
+description: >-
+  Checkout ou publicação da branch órfã `dados`, que guarda os JSONs
+  publicados. O pipeline lê o estado anterior dela e grava por cima só o que
+  conseguiu recalcular. A publicação substitui a branch por um único commit:
+  não guardamos histórico de dado (o clone fica leve) e a atividade do cron é
+  mantida pela chamada de keepalive dos workflows, não por estes commits.
+
+inputs:
+  acao:
+    description: "`checkout` ou `publicar`"
+    required: true
+  diretorio:
+    description: Onde fica o checkout da branch
+    default: site
+  token:
+    description: Token com contents:write
+    required: true
+  lease:
+    description: >-
+      Só publica se a branch ainda estiver no commit do checkout. O job de
+      agenda usa isto para nunca sobrescrever um ETL diário que terminou no
+      meio da execução dele; o diário publica sempre.
+    default: "false"
+
+outputs:
+  publicado:
+    description: "`true` se a branch foi atualizada (só então vale fazer deploy)"
+    value: ${{ steps.publicar.outputs.publicado }}
+
+runs:
+  using: composite
+  steps:
+    - if: inputs.acao == 'checkout'
+      shell: bash
+      env:
+        DIR: ${{ inputs.diretorio }}
+        TOKEN: ${{ inputs.token }}
+      # O token vai só no header de cada comando, nunca para .git/config —
+      # o código do pipeline roda dentro deste diretório.
+      run: |
+        git init -q "$DIR"
+        cd "$DIR"
+        git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+        auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+        if git -c http.extraheader="$auth" ls-remote --exit-code --heads origin dados >/dev/null; then
+          git -c http.extraheader="$auth" fetch -q --depth 1 origin dados
+          git checkout -q -b dados FETCH_HEAD
+          echo "branch dados: $(find . -name '*.json' -not -path './.git/*' | wc -l) arquivos"
+        else
+          # Primeira execução: o pipeline parte do zero.
+          git checkout -q --orphan dados
+          echo "branch dados ainda não existe — começando vazia"
+        fi
+
+    - if: inputs.acao == 'publicar'
+      id: publicar
+      shell: bash
+      env:
+        DIR: ${{ inputs.diretorio }}
+        TOKEN: ${{ inputs.token }}
+        LEASE: ${{ inputs.lease }}
+      run: |
+        cd "$DIR"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -A
+        arvore=$(git write-tree)
+        if git rev-parse -q --verify dados >/dev/null \
+          && [ "$arvore" = "$(git rev-parse 'dados^{tree}')" ]; then
+          echo "nada mudou nos dados"
+          echo "publicado=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        # Commit sem pai: a branch sempre tem um commit só.
+        commit=$(git commit-tree "$arvore" -m "dados: ${GITHUB_WORKFLOW} $(date -u +%Y-%m-%dT%H:%MZ)")
+        auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+        if [ "$LEASE" = "true" ]; then
+          base=$(git rev-parse -q --verify dados || echo "")
+          if ! git -c http.extraheader="$auth" push -q --force-with-lease="dados:${base}" origin "$commit:refs/heads/dados"; then
+            echo "a branch mudou durante a execução (ETL diário?) — desistindo; o próximo ciclo refaz"
+            echo "publicado=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+        else
+          git -c http.extraheader="$auth" push -q -f origin "$commit:refs/heads/dados"
+        fi
+        echo "branch dados publicada"
+        echo "publicado=true" >> "$GITHUB_OUTPUT"

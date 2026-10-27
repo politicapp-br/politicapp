@@ -1,0 +1,49 @@
+name: Alerta de falha de dados
+description: >-
+  Abre (ou comenta numa) issue rotulada `dados-quebrados` quando um workflow
+  de dados falha — falha de cron não pode ser silenciosa: o app fica servindo
+  dado velho sem ninguém saber.
+
+inputs:
+  titulo:
+    description: Título da issue (uma por tipo de falha; reaberturas viram comentário)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v8
+      env:
+        TITULO: ${{ inputs.titulo }}
+      with:
+        script: |
+          const titulo = process.env.TITULO
+          const rotulo = "dados-quebrados"
+          const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+          const corpo = `O workflow **${context.workflow}** falhou em ${new Date().toISOString()}.\n\nRun: ${url}`
+
+          const { data: abertas } = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: "open",
+            labels: rotulo,
+            per_page: 100,
+          })
+
+          const existente = abertas.find((issue) => issue.title === titulo)
+          if (existente) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existente.number,
+              body: corpo,
+            })
+          } else {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: titulo,
+              body: corpo,
+              labels: [rotulo],
+            })
+          }

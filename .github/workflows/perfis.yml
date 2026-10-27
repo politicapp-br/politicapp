@@ -1,0 +1,112 @@
+name: perfis
+
+# Renova as seções do shard que exigem várias requisições por parlamentar
+# (perfil, proposições, órgãos, discursos, trajetória), com orçamento de
+# tempo: quem não tem a seção primeiro, depois a renovação mais antiga. Uma
+# execução cobre os 594 hoje; se as APIs ficarem lentas, a seguinte continua.
+on:
+  schedule:
+    - cron: "0 6 * * *" # 3h em Brasília: longe do diário (9h UTC) e da agenda
+  workflow_dispatch:
+
+# Só o necessário em cada job: `gerar` escreve na branch `dados`, `publicar`
+# faz o deploy do Pages.
+permissions:
+  contents: write
+
+# Mesmo grupo do diário: os dois reescrevem shards e nunca rodam juntos. Com
+# lease, se a agenda publicar no meio, este desiste (sem deploy nem alerta) e
+# a próxima execução refaz.
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      falhas: ${{ steps.gerar.outputs.falhas }}
+      publicado: ${{ steps.dados.outputs.publicado }}
+    steps:
+      # O token não fica em .git/config: o pipeline (e suas dependências)
+      # roda neste diretório. A action `dados` usa o token só no push.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/preparar
+
+      - uses: ./.github/actions/dados
+        with:
+          acao: checkout
+          token: ${{ github.token }}
+
+      - id: gerar
+        name: Renovar perfis
+        env:
+          PIPELINE_CONCORRENCIA: "3"
+          PIPELINE_ORCAMENTO_MINUTOS: "25"
+          PIPELINE_SAIDA: ${{ github.workspace }}/site
+          PIPELINE_STATUS: ${{ runner.temp }}/falhas.txt
+        run: |
+          pnpm -C packages/pipeline start:perfis
+          {
+            echo "falhas<<FIM"
+            cat "$PIPELINE_STATUS" 2>/dev/null || true
+            echo
+            echo "FIM"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: dados
+        uses: ./.github/actions/dados
+        with:
+          acao: publicar
+          token: ${{ github.token }}
+          lease: "true"
+
+      - if: steps.dados.outputs.publicado == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  publicar:
+    needs: gerar
+    if: needs.gerar.outputs.publicado == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  conferir:
+    needs: [gerar, publicar]
+    # Roda também quando não houve deploy (nada mudou), mas nunca se o deploy falhou.
+    if: always() && needs.gerar.result == 'success' && needs.publicar.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          FALHAS: ${{ needs.gerar.outputs.falhas }}
+        run: |
+          if [ -n "$(echo "$FALHAS" | tr -d '[:space:]')" ]; then
+            echo "$FALHAS"
+            exit 1
+          fi
+
+  alertar:
+    needs: [gerar, publicar, conferir]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/alerta
+        with:
+          titulo: "Job de perfis falhou"

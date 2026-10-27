@@ -3,18 +3,22 @@ name: pipeline
 on:
   schedule:
     - cron: "0 9 * * *"
+  # Sem input de ano: rodar um ano passado aqui gravaria esse ano na branch
+  # publicada. Para reprocessar um ano antigo, rode localmente com PIPELINE_ANO.
   workflow_dispatch:
     inputs:
-      ano:
-        description: "Ano de referência"
-        required: false
-        default: ""
+      completo:
+        description: "Rodar também as etapas semanais e mensais (produção, presença, histórico, eleições)"
+        type: boolean
+        default: false
 
+# Só o necessário em cada job: `gerar` escreve na branch `dados`, `publicar`
+# faz o deploy do Pages.
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
+# Grupo próprio: um disparo da agenda nunca substitui um diário pendente. A
+# agenda publica com lease e desiste se o diário escreveu no meio dela.
 concurrency:
   group: pipeline
   cancel-in-progress: false
@@ -22,38 +26,110 @@ concurrency:
 jobs:
   gerar:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # A primeira execução apura o custo do mandato desde a posse mais antiga
+    # e roda de uma vez as etapas semanais e mensais (mais de 1 GB do TSE);
+    # as seguintes reaproveitam o que está na branch `dados`.
+    timeout-minutes: 120
+    outputs:
+      falhas: ${{ steps.gerar.outputs.falhas }}
+      publicado: ${{ steps.dados.outputs.publicado }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
+      # O token não fica em .git/config: o pipeline (e suas dependências)
+      # roda neste diretório. A action `dados` usa o token só no push.
+      - uses: actions/checkout@v5
         with:
-          version: 10.6.3
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/preparar
+
+      - uses: ./.github/actions/dados
         with:
-          node-version: 22
-          cache: pnpm
+          acao: checkout
+          token: ${{ github.token }}
 
-      - run: pnpm install --frozen-lockfile
-
-      - name: Gerar dados
+      # Etapa que falha não derruba o passo: o que deu certo é publicado e o
+      # job `conferir` falha depois, para o alerta disparar.
+      - id: gerar
+        name: Gerar dados
         env:
-          PIPELINE_ANO: ${{ inputs.ano }}
           PIPELINE_CONCORRENCIA: "3"
-          PORTAL_TRANSPARENCIA_API_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}
-        run: pnpm -C packages/pipeline start
+          PIPELINE_SAIDA: ${{ github.workspace }}/site
+          PIPELINE_STATUS: ${{ runner.temp }}/falhas.txt
+          PIPELINE_COMPLETO: ${{ inputs.completo && '1' || '' }}
+        run: |
+          pnpm -C packages/pipeline start
+          {
+            echo "falhas<<FIM"
+            cat "$PIPELINE_STATUS" 2>/dev/null || true
+            echo
+            echo "FIM"
+          } >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-pages-artifact@v3
+      - id: dados
+        uses: ./.github/actions/dados
         with:
-          path: packages/pipeline/dist
+          acao: publicar
+          token: ${{ github.token }}
+
+      - if: steps.dados.outputs.publicado == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
 
   publicar:
     needs: gerar
+    if: needs.gerar.outputs.publicado == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  conferir:
+    needs: [gerar, publicar]
+    # Roda também quando não houve deploy (nada mudou), mas nunca se o deploy falhou.
+    if: always() && needs.gerar.result == 'success' && needs.publicar.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Etapas com falha
+        env:
+          FALHAS: ${{ needs.gerar.outputs.falhas }}
+        run: |
+          if [ -n "$(echo "$FALHAS" | tr -d '[:space:]')" ]; then
+            echo "Publicado, mas estas etapas falharam (o dado anterior delas segue no ar):"
+            echo "$FALHAS"
+            exit 1
+          fi
+          echo "todas as etapas ok"
+
+  # O GitHub desliga cron de repositório sem atividade por 60 dias. Reativar
+  # os workflows pela API zera essa contagem sem precisar de commit.
+  manter-ativo:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in pipeline.yml agenda.yml perfis.yml healthcheck.yml; do
+            gh workflow enable "$workflow" -R "$GITHUB_REPOSITORY"
+          done
+
+  alertar:
+    needs: [gerar, publicar, conferir]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/alerta
+        with:
+          titulo: "Pipeline diário de dados falhou"

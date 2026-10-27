@@ -1,0 +1,52 @@
+name: healthcheck
+
+# Audita o site publicado depois da janela do pipeline diário: situação de
+# cada etapa no manifest, contrato (mesmo zod do app) dos arquivos e de uma
+# amostra das coleções. Pega tanto etapa falhando dia após dia quanto dado
+# inválido que chegou ao ar.
+on:
+  schedule:
+    - cron: "0 12 * * *" # 3h depois do pipeline diário (9h UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/preparar
+
+      - name: Validar endpoints publicados
+        run: pnpm -C packages/pipeline validar
+
+  # Redundante com o do pipeline de propósito: se um dos dois for desligado,
+  # o outro o reativa.
+  manter-ativo:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in pipeline.yml agenda.yml perfis.yml healthcheck.yml; do
+            gh workflow enable "$workflow" -R "$GITHUB_REPOSITORY"
+          done
+
+  alertar:
+    needs: validar
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/alerta
+        with:
+          titulo: "Healthcheck: endpoints publicados com problema"

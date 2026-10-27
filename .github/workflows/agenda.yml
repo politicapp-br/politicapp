@@ -1,0 +1,106 @@
+name: agenda
+
+# Job leve: recomputa só a agenda ("em pauta") do feed sobre a branch
+# `dados`. O ETL completo continua no workflow pipeline, uma vez por dia.
+on:
+  schedule:
+    - cron: "30 11,14,17,20,23 * * 1-5" # a cada 3h em horário de Brasília, dias úteis
+  workflow_dispatch:
+
+# Só o necessário em cada job: `gerar` escreve na branch `dados`, `publicar`
+# faz o deploy do Pages.
+permissions:
+  contents: write
+
+concurrency:
+  group: agenda
+  cancel-in-progress: true
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      falhas: ${{ steps.gerar.outputs.falhas }}
+      publicado: ${{ steps.dados.outputs.publicado }}
+    steps:
+      # O token não fica em .git/config: o pipeline (e suas dependências)
+      # roda neste diretório. A action `dados` usa o token só no push.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/preparar
+
+      - uses: ./.github/actions/dados
+        with:
+          acao: checkout
+          token: ${{ github.token }}
+
+      - id: gerar
+        name: Atualizar agenda
+        env:
+          PIPELINE_CONCORRENCIA: "3"
+          PIPELINE_SAIDA: ${{ github.workspace }}/site
+          PIPELINE_STATUS: ${{ runner.temp }}/falhas.txt
+        run: |
+          pnpm -C packages/pipeline start:agenda
+          {
+            echo "falhas<<FIM"
+            cat "$PIPELINE_STATUS" 2>/dev/null || true
+            echo
+            echo "FIM"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: dados
+        uses: ./.github/actions/dados
+        with:
+          acao: publicar
+          token: ${{ github.token }}
+          lease: "true"
+
+      - if: steps.dados.outputs.publicado == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  publicar:
+    needs: gerar
+    if: needs.gerar.outputs.publicado == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  conferir:
+    needs: [gerar, publicar]
+    # Roda também quando não houve deploy (nada mudou), mas nunca se o deploy falhou.
+    if: always() && needs.gerar.result == 'success' && needs.publicar.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          FALHAS: ${{ needs.gerar.outputs.falhas }}
+        run: |
+          if [ -n "$(echo "$FALHAS" | tr -d '[:space:]')" ]; then
+            echo "$FALHAS"
+            exit 1
+          fi
+
+  alertar:
+    needs: [gerar, publicar, conferir]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/alerta
+        with:
+          titulo: "Job de agenda falhou"

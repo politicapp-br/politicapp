@@ -3,73 +3,81 @@ import { FlashList } from "@shopify/flash-list"
 import { useRouter } from "expo-router"
 import { Button, Chip, Input, TextField } from "heroui-native"
 import { useDeferredValue, useMemo, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { ScrollView, View } from "react-native"
 
-import { Cabecalho } from "@/components/cabecalho"
-import { CartaoParlamentar } from "@/components/cartao-parlamentar"
-import { Carregando, EstadoDeErro, EstadoVazio } from "@/components/estados"
-import { useIndice } from "@/hooks/use-dados-estaticos"
-import { usePreferencias } from "@/services/preferencias"
-import { normalizar } from "@/utils/texto"
+import { PageHeader } from "@/components/page-header"
+import { ParlamentarCard } from "@/components/parlamentar-card"
+import { Screen } from "@/components/screen"
+import { LoadingState, ErrorState, EmptyState } from "@/components/states"
+import { CasaCompositionCard } from "@/features/parlamentar/casa-composition"
+import { useParlamentarIndex } from "@/hooks/use-static-data"
+import { usePreferences } from "@/services/preferences"
+import { routes } from "@/utils/routes"
+import { normalizeForSearch } from "@/utils/text"
 
-type Filtro = "todos" | Casa | "minha-uf"
+type Filter = "all" | Casa | "my-uf"
 
-const FILTROS: { valor: Filtro; rotulo: string }[] = [
-  { valor: "todos", rotulo: "Todos" },
-  { valor: "camara", rotulo: "Deputados" },
-  { valor: "senado", rotulo: "Senadores" },
-  { valor: "minha-uf", rotulo: "Meu estado" },
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "camara", label: "Deputados" },
+  { value: "senado", label: "Senadores" },
+  { value: "my-uf", label: "Meu estado" },
 ]
 
 export default function ParlamentaresScreen() {
   const router = useRouter()
-  const uf = usePreferencias((estado) => estado.uf)
-  const [busca, setBusca] = useState("")
-  const [filtro, setFiltro] = useState<Filtro>("todos")
-  const buscaAdiada = useDeferredValue(busca)
+  const uf = usePreferences((state) => state.uf)
+  const [search, setSearch] = useState("")
+  const [filter, setFilter] = useState<Filter>("all")
+  const deferredSearch = useDeferredValue(search)
 
-  const { data, isPending, isError, refetch } = useIndice()
+  const { data, isPending, isError, refetch } = useParlamentarIndex()
 
-  const resultados = useMemo(() => {
+  const results = useMemo(() => {
     if (!data) return []
 
-    const termo = normalizar(buscaAdiada.trim())
+    const term = normalizeForSearch(deferredSearch.trim())
 
     return data.parlamentares
-      .filter((parlamentar) => combinaComFiltro(parlamentar, filtro, uf))
+      .filter((parlamentar) => matchesFilter(parlamentar, filter, uf))
       .filter(
         (parlamentar) =>
-          termo.length === 0 ||
-          normalizar(parlamentar.nome).includes(termo) ||
-          normalizar(parlamentar.partido).includes(termo),
+          term.length === 0 ||
+          normalizeForSearch(parlamentar.nome).includes(term) ||
+          normalizeForSearch(parlamentar.partido).includes(term),
       )
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
-  }, [data, buscaAdiada, filtro, uf])
+  }, [data, deferredSearch, filter, uf])
 
-  if (isPending) return <Carregando rotulo="Carregando parlamentares…" />
+  if (isPending) {
+    return (
+      <Screen>
+        <LoadingState label="Carregando parlamentares…" />
+      </Screen>
+    )
+  }
 
   if (isError) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
-        <EstadoDeErro aoTentarNovamente={() => void refetch()} />
-      </SafeAreaView>
+      <Screen>
+        <ErrorState onRetry={() => void refetch()} />
+      </Screen>
     )
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+    <Screen>
       <View className="flex-row items-start justify-between pr-4">
         <View className="flex-1">
-          <Cabecalho
-            titulo="Parlamentares"
-            subtitulo={`${data.parlamentares.length} em exercício no Congresso`}
+          <PageHeader
+            title="Parlamentares"
+            subtitle={`${data.parlamentares.length} em exercício no Congresso`}
           />
         </View>
         <Button
           size="sm"
           variant="secondary"
-          onPress={() => router.push("/comparador")}
+          onPress={() => router.push(routes.compare)}
         >
           Comparar
         </Button>
@@ -79,8 +87,8 @@ export default function ParlamentaresScreen() {
         <TextField>
           <Input
             placeholder="Buscar por nome ou partido"
-            value={busca}
-            onChangeText={setBusca}
+            value={search}
+            onChangeText={setSearch}
             autoCorrect={false}
             clearButtonMode="while-editing"
           />
@@ -90,54 +98,70 @@ export default function ParlamentaresScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        className="grow-0"
         contentContainerClassName="gap-2 px-4 pb-3"
       >
-        {FILTROS.filter(({ valor }) => valor !== "minha-uf" || uf).map(
-          ({ valor, rotulo }) => (
+        {FILTERS.filter(({ value }) => value !== "my-uf" || uf).map(
+          ({ value, label }) => (
             <Chip
-              key={valor}
+              key={value}
               size="sm"
-              variant={filtro === valor ? "primary" : "secondary"}
-              onPress={() => setFiltro(valor)}
+              variant={filter === value ? "primary" : "secondary"}
+              onPress={() => setFilter(value)}
             >
-              {valor === "minha-uf" && uf ? uf : rotulo}
+              {value === "my-uf" && uf ? uf : label}
             </Chip>
           ),
         )}
       </ScrollView>
 
-      <FlashList
-        data={resultados}
-        keyExtractor={(parlamentar) => `${parlamentar.casa}:${parlamentar.id}`}
-        contentContainerClassName="px-4 pb-8"
-        keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => (
-          <View className="pb-2">
-            <CartaoParlamentar
-              parlamentar={item}
-              mostrarCargo={filtro === "todos" || filtro === "minha-uf"}
-              aoTocar={() => router.push(`/parlamentar/${item.casa}/${item.id}`)}
+      <View className="flex-1">
+        <FlashList
+          data={results}
+          keyExtractor={(parlamentar) =>
+            `${parlamentar.casa}:${parlamentar.id}`
+          }
+          contentContainerClassName="px-4 pb-8"
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            (filter === "camara" || filter === "senado") &&
+            deferredSearch.trim().length === 0 ? (
+              <View className="pb-3">
+                <CasaCompositionCard
+                  parlamentares={data.parlamentares}
+                  casa={filter}
+                />
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <View className="pb-2">
+              <ParlamentarCard
+                parlamentar={item}
+                showRole={filter === "all" || filter === "my-uf"}
+                onPress={() => router.push(routes.parlamentar(item))}
+              />
+            </View>
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              icon="search-outline"
+              title="Ninguém encontrado"
+              description="Tente outro nome ou sigla de partido."
             />
-          </View>
-        )}
-        ListEmptyComponent={
-          <EstadoVazio
-            icone="search-outline"
-            titulo="Ninguém encontrado"
-            descricao="Tente outro nome ou sigla de partido."
-          />
-        }
-      />
-    </SafeAreaView>
+          }
+        />
+      </View>
+    </Screen>
   )
 }
 
-const combinaComFiltro = (
+const matchesFilter = (
   parlamentar: IndiceParlamentar,
-  filtro: Filtro,
+  filter: Filter,
   uf: string | null,
 ) => {
-  if (filtro === "todos") return true
-  if (filtro === "minha-uf") return parlamentar.uf === uf
-  return parlamentar.casa === filtro
+  if (filter === "all") return true
+  if (filter === "my-uf") return parlamentar.uf === uf
+  return parlamentar.casa === filter
 }

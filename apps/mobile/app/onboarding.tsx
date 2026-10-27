@@ -3,25 +3,25 @@ import { useRouter } from "expo-router"
 import { Button, Chip } from "heroui-native"
 import { useState } from "react"
 import { ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
 
-import { usePreferencias } from "@/services/preferencias"
-import { concluirOnboarding } from "@/utils/storage"
+import { Screen } from "@/components/screen"
+import { usePreferences } from "@/services/preferences"
+import { markOnboardingDone } from "@/utils/storage"
 
 export default function OnboardingScreen() {
   const router = useRouter()
-  const ufAtual = usePreferencias((estado) => estado.uf)
-  const definirUf = usePreferencias((estado) => estado.definirUf)
-  const [escolhida, setEscolhida] = useState(ufAtual)
+  const currentUf = usePreferences((state) => state.uf)
+  const setUf = usePreferences((state) => state.setUf)
+  const [selectedUf, setSelectedUf] = useState(currentUf)
 
-  const confirmar = () => {
-    if (escolhida) definirUf(escolhida)
-    concluirOnboarding()
+  const confirm = () => {
+    if (selectedUf) setUf(selectedUf)
+    markOnboardingDone()
     router.back()
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <Screen edges={["top", "right", "bottom", "left"]}>
       <View className="gap-2 px-6 pb-4 pt-8">
         <Text className="font-title text-3xl text-foreground">
           Qual é o seu estado?
@@ -36,8 +36,8 @@ export default function OnboardingScreen() {
         {UFS.map(({ sigla, nome }) => (
           <Chip
             key={sigla}
-            variant={escolhida === sigla ? "primary" : "secondary"}
-            onPress={() => setEscolhida(sigla)}
+            variant={selectedUf === sigla ? "primary" : "secondary"}
+            onPress={() => setSelectedUf(sigla)}
           >
             {`${sigla} · ${nome}`}
           </Chip>
@@ -45,13 +45,13 @@ export default function OnboardingScreen() {
       </ScrollView>
 
       <View className="gap-3 border-t border-border px-6 py-4">
-        <Button isDisabled={!escolhida} onPress={confirmar}>
+        <Button isDisabled={!selectedUf} onPress={confirm}>
           Continuar
         </Button>
         <Button variant="ghost" onPress={() => router.back()}>
           Agora não
         </Button>
       </View>
-    </SafeAreaView>
+    </Screen>
   )
 }

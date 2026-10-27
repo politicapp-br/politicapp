@@ -1,75 +1,79 @@
 import { UFS } from "@politicapp/data"
-import * as WebBrowser from "expo-web-browser"
+import { useRouter } from "expo-router"
 import { Chip, Surface } from "heroui-native"
 import { useState } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { Pressable, Text, View } from "react-native"
 import { Uniwind } from "uniwind"
 
-import { Cabecalho } from "@/components/cabecalho"
-import { Icon } from "@/components/icon"
+import { Icon, type IconName } from "@/components/icon"
+import { PageHeader } from "@/components/page-header"
+import { Screen } from "@/components/screen"
+import { Section } from "@/components/section"
 import { useColors } from "@/hooks/use-colors"
-import { usePreferencias } from "@/services/preferencias"
-import { guardarTema, lerTema, type TemaGuardado } from "@/utils/storage"
+import { usePreferences } from "@/services/preferences"
+import { openUrl } from "@/utils/links"
+import { routes } from "@/utils/routes"
+import { saveTheme, readStoredTheme, type StoredTheme } from "@/utils/storage"
+import { cn } from "@/utils/cn"
 
-const TEMAS: { valor: TemaGuardado; rotulo: string }[] = [
-  { valor: "system", rotulo: "Sistema" },
-  { valor: "light", rotulo: "Claro" },
-  { valor: "dark", rotulo: "Escuro" },
+const THEMES: { value: StoredTheme; label: string }[] = [
+  { value: "system", label: "Sistema" },
+  { value: "light", label: "Claro" },
+  { value: "dark", label: "Escuro" },
 ]
 
-const FONTES = [
+const DATA_SOURCES = [
   {
-    nome: "Câmara dos Deputados",
+    name: "Câmara dos Deputados",
     url: "https://dadosabertos.camara.leg.br/",
   },
   {
-    nome: "Senado Federal",
+    name: "Senado Federal",
     url: "https://www12.senado.leg.br/dados-abertos",
   },
   {
-    nome: "Tribunal Superior Eleitoral",
+    name: "Tribunal Superior Eleitoral",
     url: "https://dadosabertos.tse.jus.br/",
   },
 ]
 
-export default function AjustesScreen() {
-  const { muted } = useColors()
-  const uf = usePreferencias((estado) => estado.uf)
-  const definirUf = usePreferencias((estado) => estado.definirUf)
-  const seguidos = usePreferencias((estado) => estado.seguidos)
-  const [tema, setTema] = useState<TemaGuardado>(lerTema() ?? "system")
+export default function SettingsScreen() {
+  const router = useRouter()
+  const uf = usePreferences((state) => state.uf)
+  const setUf = usePreferences((state) => state.setUf)
+  const followed = usePreferences((state) => state.followed)
+  const [theme, setTheme] = useState<StoredTheme>(readStoredTheme() ?? "system")
 
-  const trocarTema = (novo: TemaGuardado) => {
-    setTema(novo)
-    guardarTema(novo)
-    Uniwind.setTheme(novo)
+  const changeTheme = (next: StoredTheme) => {
+    setTheme(next)
+    saveTheme(next)
+    Uniwind.setTheme(next)
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
-      <ScrollView contentContainerClassName="pb-10">
-        <Cabecalho titulo="Ajustes" />
+    <Screen>
+      <Screen.Scroll contentClassName="gap-0 px-0">
+        <PageHeader title="Ajustes" />
 
         <View className="gap-6 px-4">
-          <Secao titulo="Aparência">
+          <Section title="Aparência">
             <View className="flex-row gap-2">
-              {TEMAS.map(({ valor, rotulo }) => (
+              {THEMES.map(({ value, label }) => (
                 <Chip
-                  key={valor}
+                  key={value}
                   size="sm"
-                  variant={tema === valor ? "primary" : "secondary"}
-                  onPress={() => trocarTema(valor)}
+                  variant={theme === value ? "primary" : "secondary"}
+                  onPress={() => changeTheme(value)}
                 >
-                  {rotulo}
+                  {label}
                 </Chip>
               ))}
             </View>
-          </Secao>
+          </Section>
 
-          <Secao
-            titulo="Meu estado"
-            descricao="Define quais parlamentares aparecem em destaque no início."
+          <Section
+            title="Meu estado"
+            description="Define quais parlamentares aparecem em destaque no início."
           >
             <View className="flex-row flex-wrap gap-2">
               {UFS.map(({ sigla }) => (
@@ -77,69 +81,97 @@ export default function AjustesScreen() {
                   key={sigla}
                   size="sm"
                   variant={uf === sigla ? "primary" : "secondary"}
-                  onPress={() => definirUf(sigla)}
+                  onPress={() => setUf(sigla)}
                 >
                   {sigla}
                 </Chip>
               ))}
             </View>
-          </Secao>
+          </Section>
 
-          <Secao titulo="Acompanhamento">
-            <Surface variant="secondary" className="p-4">
-              <Text className="text-sm text-foreground">
-                {seguidos.length === 0
-                  ? "Você ainda não segue ninguém."
-                  : `Você segue ${seguidos.length} ${seguidos.length === 1 ? "parlamentar" : "parlamentares"}.`}
-              </Text>
-            </Surface>
-          </Secao>
-
-          <Secao
-            titulo="De onde vêm os dados"
-            descricao="Tudo vem de APIs públicas e oficiais. Nenhum dado é editorializado."
+          <Section
+            title="Salários públicos"
+            description="Quanto ganha cada cargo e qual é o teto que nenhum deles pode passar."
           >
             <Surface variant="secondary" className="overflow-hidden">
-              {FONTES.map((fonte, indice) => (
-                <Pressable
-                  key={fonte.url}
-                  onPress={() => void WebBrowser.openBrowserAsync(fonte.url)}
-                  className={
-                    indice === 0
-                      ? "flex-row items-center justify-between p-4"
-                      : "flex-row items-center justify-between border-t border-border p-4"
-                  }
-                >
-                  <Text className="text-sm text-foreground">{fonte.nome}</Text>
-                  <Icon name="open-outline" size={16} color={muted} />
-                </Pressable>
+              <LinkRow
+                label="Quem ganha quanto"
+                onPress={() => router.push(routes.salaries)}
+              />
+            </Surface>
+          </Section>
+
+          <Section title="Acompanhamento">
+            <Surface variant="secondary" className="p-4">
+              <Text className="text-sm text-foreground">
+                {followed.length === 0
+                  ? "Você ainda não segue ninguém."
+                  : `Você segue ${followed.length} ${followed.length === 1 ? "parlamentar" : "parlamentares"}.`}
+              </Text>
+            </Surface>
+          </Section>
+
+          <Section
+            title="De onde vêm os dados"
+            description="Tudo vem de APIs públicas e oficiais. Nenhum dado é editorializado."
+          >
+            <Surface variant="secondary" className="overflow-hidden">
+              {DATA_SOURCES.map((source, index) => (
+                <LinkRow
+                  key={source.url}
+                  label={source.name}
+                  icon="open-outline"
+                  separated={index > 0}
+                  onPress={() => openUrl(source.url)}
+                />
               ))}
             </Surface>
-          </Secao>
+          </Section>
+
+          <Section title="Desenvolvimento">
+            <Surface variant="secondary" className="overflow-hidden">
+              <LinkRow
+                label="Vitrine de gráficos"
+                onPress={() => router.push(routes.chartsShowcase)}
+              />
+            </Surface>
+          </Section>
 
           <Text className="text-center text-xs text-muted-foreground">
             Politicapp é gratuito, sem anúncios e de código aberto.
           </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </Screen.Scroll>
+    </Screen>
   )
 }
 
-type SecaoProps = {
-  titulo: string
-  descricao?: string
-  children: React.ReactNode
+type LinkRowProps = {
+  label: string
+  onPress: () => void
+  icon?: IconName
+  /** Linha divisória acima, para itens empilhados no mesmo `Surface`. */
+  separated?: boolean
 }
 
-const Secao = ({ titulo, descricao, children }: SecaoProps) => (
-  <View className="gap-3">
-    <View className="gap-1">
-      <Text className="text-base font-semibold text-foreground">{titulo}</Text>
-      {descricao ? (
-        <Text className="text-xs text-muted-foreground">{descricao}</Text>
-      ) : null}
-    </View>
-    {children}
-  </View>
-)
+const LinkRow = ({
+  label,
+  onPress,
+  icon = "chevron-forward",
+  separated = false,
+}: LinkRowProps) => {
+  const { muted } = useColors()
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className={cn(
+        "flex-row items-center justify-between p-4",
+        separated && "border-t border-border",
+      )}
+    >
+      <Text className="text-sm text-foreground">{label}</Text>
+      <Icon name={icon} size={16} color={muted} />
+    </Pressable>
+  )
+}

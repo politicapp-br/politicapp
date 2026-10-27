@@ -1,101 +1,101 @@
 import {
-  nivelNaDistribuicao,
   parlamentarKey,
   posicaoNaDistribuicao,
-  type Benchmark,
   type IndiceParlamentar,
 } from "@politicapp/data"
-import { useRouter } from "expo-router"
 import { Button, Chip, Input, Surface, TextField } from "heroui-native"
-import { useDeferredValue, useMemo, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react"
+import { Text, View } from "react-native"
 
-import { AvatarParlamentar } from "@/components/avatar-parlamentar"
-import { Carregando, EstadoDeErro } from "@/components/estados"
+import { Card } from "@/components/card"
 import { Icon } from "@/components/icon"
+import { ParlamentarAvatar } from "@/components/parlamentar-avatar"
+import { Screen } from "@/components/screen"
+import { LoadingState, ErrorState } from "@/components/states"
 import { useColors } from "@/hooks/use-colors"
-import { useBenchmarks, useIndice } from "@/hooks/use-dados-estaticos"
+import { useMetricColors } from "@/hooks/use-metric-colors"
+import { useCasaBenchmark, useParlamentarIndex } from "@/hooks/use-static-data"
 import {
-  formatarPercentual,
-  formatarReaisCompacto,
-  formatarVariacao,
+  formatPercent,
+  formatCurrencyCompact,
+  formatMedianDeviation,
 } from "@/utils/formatters"
-import { normalizar } from "@/utils/texto"
+import { normalizeForSearch } from "@/utils/text"
 
-const MAXIMO = 3
+const MAX_SELECTED = 3
 
-export default function ComparadorScreen() {
-  const router = useRouter()
-  const { foreground } = useColors()
-  const [escolhidos, setEscolhidos] = useState<IndiceParlamentar[]>([])
-  const [busca, setBusca] = useState("")
-  const buscaAdiada = useDeferredValue(busca)
+export default function CompareScreen() {
+  const [selected, setSelected] = useState<IndiceParlamentar[]>([])
+  const [search, setSearch] = useState("")
+  const deferredSearch = useDeferredValue(search)
 
-  const indice = useIndice()
-  const benchmarks = useBenchmarks()
+  const index = useParlamentarIndex()
 
-  const sugestoes = useMemo(() => {
-    const termo = normalizar(buscaAdiada.trim())
-    if (!indice.data || termo.length < 2) return []
+  const suggestions = useMemo(() => {
+    const term = normalizeForSearch(deferredSearch.trim())
+    if (!index.data || term.length < 2) return []
 
-    const jaEscolhidos = new Set(escolhidos.map(parlamentarKey))
+    const selectedKeys = new Set(selected.map(parlamentarKey))
 
-    return indice.data.parlamentares
-      .filter((parlamentar) => !jaEscolhidos.has(parlamentarKey(parlamentar)))
-      .filter((parlamentar) => normalizar(parlamentar.nome).includes(termo))
+    return index.data.parlamentares
+      .filter((parlamentar) => !selectedKeys.has(parlamentarKey(parlamentar)))
+      .filter((parlamentar) => normalizeForSearch(parlamentar.nome).includes(term))
       .slice(0, 6)
-  }, [indice.data, buscaAdiada, escolhidos])
+  }, [index.data, deferredSearch, selected])
 
-  const adicionar = (parlamentar: IndiceParlamentar) => {
-    if (escolhidos.length >= MAXIMO) return
-    setEscolhidos((atuais) => [...atuais, parlamentar])
-    setBusca("")
+  const add = (parlamentar: IndiceParlamentar) => {
+    if (selected.length >= MAX_SELECTED) return
+    setSelected((current) => [...current, parlamentar])
+    setSearch("")
   }
 
-  const remover = (parlamentar: IndiceParlamentar) =>
-    setEscolhidos((atuais) =>
-      atuais.filter(
-        (atual) => parlamentarKey(atual) !== parlamentarKey(parlamentar),
+  const remove = (parlamentar: IndiceParlamentar) =>
+    setSelected((current) =>
+      current.filter(
+        (item) => parlamentarKey(item) !== parlamentarKey(parlamentar),
       ),
     )
 
-  if (indice.isPending) return <Carregando />
-  if (indice.isError) {
+  if (index.isPending) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
-        <EstadoDeErro aoTentarNovamente={() => void indice.refetch()} />
-      </SafeAreaView>
+      <Screen>
+        <Screen.TopBar title="Comparador" />
+        <LoadingState />
+      </Screen>
+    )
+  }
+
+  if (index.isError) {
+    return (
+      <Screen>
+        <Screen.TopBar title="Comparador" />
+        <ErrorState onRetry={() => void index.refetch()} />
+      </Screen>
     )
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
-      <View className="flex-row items-center gap-2 px-4 py-2">
-        <Button size="sm" variant="ghost" isIconOnly onPress={() => router.back()}>
-          <Icon name="chevron-back" size={22} color={foreground} />
-        </Button>
-        <Text className="font-title text-xl text-foreground">Comparador</Text>
-      </View>
+    <Screen>
+      <Screen.TopBar title="Comparador" />
 
-      <ScrollView contentContainerClassName="gap-4 px-4 pb-10">
-        {escolhidos.length < MAXIMO ? (
+      <Screen.Scroll contentClassName="gap-4">
+        {selected.length < MAX_SELECTED ? (
           <View className="gap-2">
             <TextField>
               <Input
                 placeholder="Adicionar parlamentar"
-                value={busca}
-                onChangeText={setBusca}
+                value={search}
+                onChangeText={setSearch}
                 autoCorrect={false}
               />
             </TextField>
 
-            {sugestoes.map((parlamentar) => (
+            {suggestions.map((parlamentar) => (
               <Chip
                 key={parlamentarKey(parlamentar)}
                 size="sm"
                 variant="secondary"
-                onPress={() => adicionar(parlamentar)}
+                onPress={() => add(parlamentar)}
               >
                 {`${parlamentar.nome} · ${parlamentar.partido}/${parlamentar.uf}`}
               </Chip>
@@ -103,83 +103,60 @@ export default function ComparadorScreen() {
           </View>
         ) : null}
 
-        {escolhidos.length === 0 ? (
-          <Surface variant="secondary" className="gap-2 p-4">
-            <Text className="text-base font-semibold text-foreground">
-              Compare até {MAXIMO} parlamentares
-            </Text>
+        {selected.length === 0 ? (
+          <Card title={`Compare até ${MAX_SELECTED} parlamentares`}>
             <Text className="text-sm text-muted-foreground">
               Busque pelo nome para ver gastos e participação lado a lado, sempre
               com a mediana da casa como referência.
             </Text>
-          </Surface>
+          </Card>
         ) : (
           <View className="flex-row gap-3">
-            {escolhidos.map((parlamentar) => (
-              <ColunaComparacao
+            {selected.map((parlamentar) => (
+              <ComparisonColumn
                 key={parlamentarKey(parlamentar)}
                 parlamentar={parlamentar}
-                benchmark={
-                  benchmarks.data?.casas.find(
-                    (casa) => casa.casa === parlamentar.casa,
-                  ) ?? null
-                }
-                aoRemover={() => remover(parlamentar)}
+                onRemove={() => remove(parlamentar)}
               />
             ))}
           </View>
         )}
-      </ScrollView>
-    </SafeAreaView>
+      </Screen.Scroll>
+    </Screen>
   )
 }
 
-type ColunaProps = {
+type ComparisonColumnProps = {
   parlamentar: IndiceParlamentar
-  benchmark: Benchmark | null
-  aoRemover: () => void
+  onRemove: () => void
 }
 
-const ColunaComparacao = ({ parlamentar, benchmark, aoRemover }: ColunaProps) => {
-  const { muted, successColor, warningColor, dangerColor } = useColors()
+const ComparisonColumn = ({ parlamentar, onRemove }: ComparisonColumnProps) => {
+  const { muted } = useColors()
+  const { spendingColor, attendanceColor } = useMetricColors()
+  const benchmark = useCasaBenchmark(parlamentar.casa).data
 
-  const gastos = benchmark?.gastos.geral ?? null
-  const participacao = benchmark?.participacao.geral ?? null
+  const spending = benchmark?.gastos.geral ?? null
+  const attendance = benchmark?.participacao.geral ?? null
+  const yearSpending = parlamentar.gastoAno
+  const percent = parlamentar.participacaoPercentual
 
-  const desvio =
-    gastos && parlamentar.gastoAno !== null
-      ? posicaoNaDistribuicao(parlamentar.gastoAno, gastos)
+  const spendingDeviation =
+    spending && yearSpending !== null
+      ? posicaoNaDistribuicao(yearSpending, spending)
       : null
 
-  const nivelGasto =
-    gastos && parlamentar.gastoAno !== null
-      ? nivelNaDistribuicao(parlamentar.gastoAno, gastos)
-      : null
-
-  const corGasto =
-    nivelGasto === "atipico"
-      ? dangerColor
-      : nivelGasto === "acima"
-        ? warningColor
-        : successColor
-
-  const percentual = parlamentar.participacaoPercentual
-  const corParticipacao =
-    participacao && percentual !== null
-      ? percentual >= participacao.mediana
-        ? successColor
-        : percentual >= participacao.p25
-          ? warningColor
-          : dangerColor
-      : muted
+  // Sem benchmark da casa não há referência para o semáforo: fica neutro.
+  const attendanceTextColor =
+    attendance && percent !== null ? attendanceColor(percent, attendance) : muted
 
   return (
     <Surface variant="secondary" className="flex-1 items-center gap-2 p-3">
-      <Button size="sm" variant="ghost" isIconOnly onPress={aoRemover}>
+      <Button size="sm" variant="ghost" isIconOnly onPress={onRemove}>
         <Icon name="close" size={16} color={muted} />
       </Button>
 
-      <AvatarParlamentar parlamentar={parlamentar} tamanho={44} />
+      <ParlamentarAvatar parlamentar={parlamentar} size={44} />
 
       <Text
         className="text-center text-sm font-semibold text-foreground"
@@ -191,39 +168,51 @@ const ColunaComparacao = ({ parlamentar, benchmark, aoRemover }: ColunaProps) =>
         {parlamentar.partido}/{parlamentar.uf}
       </Text>
 
-      <View className="w-full gap-1 border-t border-border pt-2">
-        <Text className="text-[11px] text-muted-foreground">Cota no ano</Text>
+      <MetricBlock label="Cota no ano">
         <Text className="text-sm font-semibold text-foreground">
-          {parlamentar.gastoAno === null
-            ? "—"
-            : formatarReaisCompacto(parlamentar.gastoAno)}
+          {yearSpending === null ? "—" : formatCurrencyCompact(yearSpending)}
         </Text>
-        {desvio !== null ? (
-          <Text className="text-[11px]" style={{ color: corGasto }}>
-            {formatarVariacao(desvio)}
+        {spending && spendingDeviation !== null && yearSpending !== null ? (
+          <Text
+            className="text-[11px]"
+            style={{ color: spendingColor(yearSpending, spending) }}
+          >
+            {formatMedianDeviation(spendingDeviation)}
           </Text>
         ) : null}
-        {gastos ? (
+        {spending ? (
           <Text className="text-[11px] text-muted-foreground">
-            mediana {formatarReaisCompacto(gastos.mediana)}
+            mediana {formatCurrencyCompact(spending.mediana)}
           </Text>
         ) : null}
-      </View>
+      </MetricBlock>
 
-      <View className="w-full gap-1 border-t border-border pt-2">
-        <Text className="text-[11px] text-muted-foreground">Participação</Text>
+      <MetricBlock label="Participação">
         <Text
           className="text-sm font-semibold"
-          style={{ color: percentual === null ? muted : corParticipacao }}
+          style={{ color: attendanceTextColor }}
         >
-          {percentual === null ? "—" : formatarPercentual(percentual, 0)}
+          {percent === null ? "—" : formatPercent(percent, 0)}
         </Text>
-        {participacao ? (
+        {attendance ? (
           <Text className="text-[11px] text-muted-foreground">
-            mediana {formatarPercentual(participacao.mediana, 0)}
+            mediana {formatPercent(attendance.mediana, 0)}
           </Text>
         ) : null}
-      </View>
+      </MetricBlock>
     </Surface>
   )
 }
+
+const MetricBlock = ({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) => (
+  <View className="w-full gap-1 border-t border-border pt-2">
+    <Text className="text-[11px] text-muted-foreground">{label}</Text>
+    {children}
+  </View>
+)

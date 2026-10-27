@@ -17,8 +17,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { Uniwind } from "uniwind"
 
 import { ErrorBoundary } from "@/components/error-boundary"
-import { opcoesDePersistencia, queryClient } from "@/services/query-client"
-import { lerTema } from "@/utils/storage"
+import { persistOptions, queryClient } from "@/services/query-client"
+import { readStoredTheme } from "@/utils/storage"
 
 import "../global.css"
 
@@ -34,7 +34,7 @@ Sentry.init({
 })
 
 export default Sentry.wrap(function RootLayout() {
-  const [fontesCarregadas] = useFonts({
+  const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -43,16 +43,16 @@ export default Sentry.wrap(function RootLayout() {
   })
 
   useLayoutEffect(() => {
-    Uniwind.setTheme(lerTema() ?? "system")
+    Uniwind.setTheme(readStoredTheme() ?? "system")
   }, [])
 
-  if (!fontesCarregadas) return null
+  if (!fontsLoaded) return null
 
   return (
     <ErrorBoundary>
       <PersistQueryClientProvider
         client={queryClient}
-        persistOptions={opcoesDePersistencia}
+        persistOptions={persistOptions}
       >
         <GestureHandlerRootView style={{ flex: 1 }}>
           <HeroUINativeProvider
@@ -69,8 +69,14 @@ export default Sentry.wrap(function RootLayout() {
                 name="votacao/[casa]/[id]"
                 options={{ presentation: "card" }}
               />
+              <Stack.Screen
+                name="proposicao/[casa]/[id]"
+                options={{ presentation: "card" }}
+              />
               <Stack.Screen name="candidato/[uf]/[cargo]/[id]" />
               <Stack.Screen name="comparador" />
+              <Stack.Screen name="salarios" />
+              <Stack.Screen name="graficos" />
               <Stack.Screen
                 name="onboarding"
                 options={{ presentation: "modal" }}

@@ -6,79 +6,79 @@ import {
   type Voto,
 } from "@politicapp/data"
 import { FlashList } from "@shopify/flash-list"
-import { useLocalSearchParams, useRouter } from "expo-router"
-import { Button, Chip, Surface } from "heroui-native"
+import { useLocalSearchParams } from "expo-router"
+import { Chip } from "heroui-native"
 import { useMemo, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
 
-import { Carregando, EstadoDeErro } from "@/components/estados"
-import { Icon } from "@/components/icon"
-import { PlacarVotacao } from "@/components/placar-votacao"
+import { Card } from "@/components/card"
+import { Screen } from "@/components/screen"
+import { ErrorState, LoadingState } from "@/components/states"
+import { VoteTally } from "@/components/vote-tally"
+import { OrientacoesCard } from "@/features/votacao/orientacoes"
+import { PlenaryMap } from "@/features/votacao/plenary-map"
+import { VotesByGroup } from "@/features/votacao/votes-by-group"
 import { useColors } from "@/hooks/use-colors"
 import { useVotacao } from "@/hooks/use-votacoes"
-import { formatarDataExtensa } from "@/utils/date-utils"
-import { corDoPartido } from "@/utils/party-colors"
+import { formatDateLong } from "@/utils/date-utils"
+import { getPartyColor } from "@/utils/party-colors"
+
+type VoteFilter = TipoVoto | "todos"
+
+const VOTE_FILTERS = ["todos", "sim", "nao", "abstencao", "ausente"] as const
 
 export default function VotacaoScreen() {
-  const router = useRouter()
-  const { foreground } = useColors()
   const params = useLocalSearchParams<{ casa: string; id: string }>()
   const casa = casaSchema.safeParse(params.casa)
 
   if (!casa.success || !params.id) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
-        <EstadoDeErro titulo="Votação não encontrada" />
-      </SafeAreaView>
+      <Screen>
+        <ErrorState title="Votação não encontrada" />
+      </Screen>
     )
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
-      <View className="flex-row items-center px-4 py-2">
-        <Button size="sm" variant="ghost" isIconOnly onPress={() => router.back()}>
-          <Icon name="chevron-back" size={22} color={foreground} />
-        </Button>
-      </View>
-
-      <Conteudo casa={casa.data} id={params.id} />
-    </SafeAreaView>
+    <Screen>
+      <Screen.TopBar />
+      <VotacaoContent casa={casa.data} id={params.id} />
+    </Screen>
   )
 }
 
-type ConteudoProps = { casa: Casa; id: string }
+type VotacaoContentProps = { casa: Casa; id: string }
 
-const Conteudo = ({ casa, id }: ConteudoProps) => {
+const VotacaoContent = ({ casa, id }: VotacaoContentProps) => {
   const { data, isPending, isError, refetch } = useVotacao(casa, id)
-  const [filtro, setFiltro] = useState<TipoVoto | "todos">("todos")
+  const [filter, setFilter] = useState<VoteFilter>("todos")
 
-  const votosFiltrados = useMemo(() => {
+  const filteredVotes = useMemo(() => {
     if (!data) return []
-    const ordenados = [...data.votos].sort((a, b) =>
+    const sorted = [...data.votos].sort((a, b) =>
       a.nome.localeCompare(b.nome, "pt-BR"),
     )
-    return filtro === "todos"
-      ? ordenados
-      : ordenados.filter((voto) => voto.voto === filtro)
-  }, [data, filtro])
+    return filter === "todos"
+      ? sorted
+      : sorted.filter((voto) => voto.voto === filter)
+  }, [data, filter])
 
-  if (isPending) return <Carregando />
+  if (isPending) return <LoadingState />
   if (isError || !data) {
-    return <EstadoDeErro aoTentarNovamente={() => void refetch()} />
+    return <ErrorState onRetry={() => void refetch()} />
   }
 
-  const filtrosDisponiveis = ["todos", "sim", "nao", "abstencao", "ausente"] as const
+  const hasVotes = data.votos.length > 0
 
   return (
     <FlashList
-      data={votosFiltrados}
+      data={filteredVotes}
       keyExtractor={(voto) => `${voto.casa}:${voto.id}`}
       contentContainerClassName="px-4 pb-10"
       ListHeaderComponent={
         <View className="gap-4 pb-4">
           <Text className="text-xs text-muted-foreground">
-            {formatarDataExtensa(data.data)}
+            {formatDateLong(data.data)}
           </Text>
 
           <Text className="font-title text-2xl text-foreground">
@@ -91,6 +91,19 @@ const Conteudo = ({ casa, id }: ConteudoProps) => {
             </Text>
           ) : null}
 
+          {data.proposicao ? (
+            <Card
+              title={`O que estava em votação · ${data.proposicao.sigla}`}
+              className="gap-2"
+            >
+              {data.proposicao.ementa ? (
+                <Text className="text-sm text-muted-foreground">
+                  {data.proposicao.ementa}
+                </Text>
+              ) : null}
+            </Card>
+          ) : null}
+
           {data.aprovada === null ? null : (
             <View className="flex-row">
               <Chip size="sm" color={data.aprovada ? "success" : "danger"}>
@@ -99,46 +112,61 @@ const Conteudo = ({ casa, id }: ConteudoProps) => {
             </View>
           )}
 
-          <Surface variant="secondary" className="gap-3 p-4">
-            <PlacarVotacao placar={data.placar} />
-          </Surface>
+          <Card>
+            <VoteTally tally={data.placar} />
+          </Card>
 
-          {data.votos.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerClassName="gap-2"
-            >
-              {filtrosDisponiveis.map((opcao) => (
-                <Chip
-                  key={opcao}
-                  size="sm"
-                  variant={filtro === opcao ? "primary" : "secondary"}
-                  onPress={() => setFiltro(opcao)}
-                >
-                  {opcao === "todos" ? "Todos" : VOTO_LABEL[opcao]}
-                </Chip>
-              ))}
-            </ScrollView>
+          {hasVotes ? <PlenaryMap votos={data.votos} /> : null}
+
+          {hasVotes ? <VotesByGroup votos={data.votos} /> : null}
+
+          <OrientacoesCard casa={casa} id={id} votos={data.votos} />
+
+          {hasVotes ? (
+            <VoteFilterChips selected={filter} onSelect={setFilter} />
           ) : null}
         </View>
       }
-      renderItem={({ item }) => <LinhaDeVoto voto={item} />}
+      renderItem={({ item }) => <VoteRow voto={item} />}
       ListEmptyComponent={
         <Text className="py-8 text-center text-sm text-muted-foreground">
-          {data.votos.length === 0
-            ? "Esta votação não teve registro de votos individuais."
-            : "Ninguém votou dessa forma."}
+          {hasVotes
+            ? "Ninguém votou dessa forma."
+            : "Esta votação não teve registro de votos individuais."}
         </Text>
       }
     />
   )
 }
 
-const LinhaDeVoto = ({ voto }: { voto: Voto }) => {
+type VoteFilterChipsProps = {
+  selected: VoteFilter
+  onSelect: (filter: VoteFilter) => void
+}
+
+const VoteFilterChips = ({ selected, onSelect }: VoteFilterChipsProps) => (
+  <ScrollView
+    horizontal
+    showsHorizontalScrollIndicator={false}
+    contentContainerClassName="gap-2"
+  >
+    {VOTE_FILTERS.map((option) => (
+      <Chip
+        key={option}
+        size="sm"
+        variant={selected === option ? "primary" : "secondary"}
+        onPress={() => onSelect(option)}
+      >
+        {option === "todos" ? "Todos" : VOTO_LABEL[option]}
+      </Chip>
+    ))}
+  </ScrollView>
+)
+
+const VoteRow = ({ voto }: { voto: Voto }) => {
   const { successColor, dangerColor, muted } = useColors()
 
-  const cor =
+  const color =
     voto.voto === "sim"
       ? successColor
       : voto.voto === "nao"
@@ -149,7 +177,7 @@ const LinhaDeVoto = ({ voto }: { voto: Voto }) => {
     <View className="flex-row items-center gap-3 border-b border-border py-3">
       <View
         className="h-8 w-1 rounded-full"
-        style={{ backgroundColor: corDoPartido(voto.partido) }}
+        style={{ backgroundColor: getPartyColor(voto.partido) }}
       />
       <View className="flex-1">
         <Text className="text-sm text-foreground" numberOfLines={1}>
@@ -159,7 +187,7 @@ const LinhaDeVoto = ({ voto }: { voto: Voto }) => {
           {voto.partido} · {voto.uf}
         </Text>
       </View>
-      <Text className="text-sm font-semibold" style={{ color: cor }}>
+      <Text className="text-sm font-semibold" style={{ color }}>
         {VOTO_LABEL[voto.voto]}
       </Text>
     </View>

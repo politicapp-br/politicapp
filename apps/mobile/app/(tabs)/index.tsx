@@ -1,170 +1,220 @@
-import { parseParlamentarKey, type IndiceParlamentar } from "@politicapp/data"
+import {
+  chaveDoEvento,
+  parseParlamentarKey,
+  type EventoPauta,
+  type IndiceParlamentar,
+} from "@politicapp/data"
 import { FlashList } from "@shopify/flash-list"
 import { useRouter } from "expo-router"
-import { Button, Surface } from "heroui-native"
+import { Button } from "heroui-native"
 import { useMemo } from "react"
 import { RefreshControl, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
 
-import { Cabecalho } from "@/components/cabecalho"
-import { CartaoParlamentar } from "@/components/cartao-parlamentar"
-import { Carregando, EstadoDeErro, EstadoVazio } from "@/components/estados"
-import { CartaoVotacao } from "@/features/feed/cartao-votacao"
-import { useIndice } from "@/hooks/use-dados-estaticos"
-import { useVotacoesRecentes } from "@/hooks/use-votacoes"
-import { usePreferencias } from "@/services/preferencias"
+import { Card } from "@/components/card"
+import { PageHeader } from "@/components/page-header"
+import { ParlamentarCard } from "@/components/parlamentar-card"
+import { Screen } from "@/components/screen"
+import { Section } from "@/components/section"
+import { LoadingState, ErrorState, EmptyState } from "@/components/states"
+import { NormaCard } from "@/features/feed/norma-card"
+import { PautaCard } from "@/features/feed/pauta-card"
+import { TramitacaoCard } from "@/features/feed/tramitacao-card"
+import { VotacaoCard } from "@/features/feed/votacao-card"
+import { useFeed } from "@/hooks/use-feed"
+import { useParlamentarIndex } from "@/hooks/use-static-data"
+import { usePreferences } from "@/services/preferences"
+import { routes } from "@/utils/routes"
 
-export default function InicioScreen() {
+export default function HomeScreen() {
   const router = useRouter()
-  const uf = usePreferencias((estado) => estado.uf)
-  const seguidos = usePreferencias((estado) => estado.seguidos)
+  const uf = usePreferences((state) => state.uf)
+  const followed = usePreferences((state) => state.followed)
 
-  const indice = useIndice()
-  const votacoes = useVotacoesRecentes("camara")
+  const index = useParlamentarIndex()
+  const feed = useFeed()
 
-  const meusParlamentares = useMemo(() => {
-    if (!indice.data) return []
+  const myParlamentares = useMemo(() => {
+    if (!index.data) return []
 
-    const refs = seguidos
+    const refs = followed
       .map(parseParlamentarKey)
       .filter((ref): ref is NonNullable<typeof ref> => ref !== null)
 
-    const seguidosNoIndice = refs.flatMap((ref) => {
-      const encontrado = indice.data.parlamentares.find(
+    const followedInIndex = refs.flatMap((ref) => {
+      const found = index.data.parlamentares.find(
         (parlamentar) =>
           parlamentar.casa === ref.casa && parlamentar.id === ref.id,
       )
-      return encontrado ? [encontrado] : []
+      return found ? [found] : []
     })
 
-    if (seguidosNoIndice.length > 0) return seguidosNoIndice
+    if (followedInIndex.length > 0) return followedInIndex
 
     return uf
-      ? indice.data.parlamentares
+      ? index.data.parlamentares
           .filter(
             (parlamentar) =>
               parlamentar.uf === uf && parlamentar.casa === "senado",
           )
           .slice(0, 3)
       : []
-  }, [indice.data, seguidos, uf])
+  }, [index.data, followed, uf])
 
-  if (indice.isPending) return <Carregando rotulo="Carregando o Congresso…" />
-
-  if (indice.isError) {
+  if (index.isPending) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
-        <EstadoDeErro aoTentarNovamente={() => void indice.refetch()} />
-      </SafeAreaView>
+      <Screen>
+        <LoadingState label="Carregando o Congresso…" />
+      </Screen>
+    )
+  }
+
+  if (index.isError) {
+    return (
+      <Screen>
+        <ErrorState onRetry={() => void index.refetch()} />
+      </Screen>
     )
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+    <Screen>
       <FlashList
-        data={votacoes.data ?? []}
-        keyExtractor={(votacao) => votacao.id}
+        data={feed.data?.events ?? []}
+        keyExtractor={chaveDoEvento}
         contentContainerClassName="pb-8"
         refreshControl={
           <RefreshControl
-            refreshing={votacoes.isRefetching}
-            onRefresh={() => void votacoes.refetch()}
+            refreshing={feed.isRefetching}
+            onRefresh={() => void feed.refetch()}
           />
         }
         ListHeaderComponent={
           <View className="gap-4">
-            <Cabecalho
-              titulo="Início"
-              subtitulo={
+            <PageHeader
+              title="Início"
+              subtitle={
                 uf
                   ? `O que anda acontecendo — e o que os seus de ${uf} fizeram`
                   : "O que anda acontecendo no Congresso"
               }
             />
 
-            <SecaoMeusPoliticos
-              parlamentares={meusParlamentares}
-              temSeguidos={seguidos.length > 0}
-              aoEscolher={() => router.push("/onboarding")}
+            <MyParlamentaresSection
+              parlamentares={myParlamentares}
+              hasFollowed={followed.length > 0}
+              onChooseUf={() => router.push(routes.onboarding)}
             />
 
-            <Text className="px-4 pt-2 text-lg font-semibold text-foreground">
-              Votações recentes na Câmara
-            </Text>
+            <AgendaSection agenda={feed.data?.agenda ?? []} />
+
+            <Section
+              title="Aconteceu em Brasília"
+              description="Votações de plenário, projetos que mudaram de estágio e o que virou lei, MP ou decreto no Diário Oficial."
+              className="px-4 pt-2"
+            />
           </View>
         }
         renderItem={({ item }) => (
           <View className="px-4 pb-3">
-            <CartaoVotacao votacao={item} />
+            {item.tipo === "votacao" ? (
+              <VotacaoCard votacao={item.votacao} nominal={item.nominal} />
+            ) : item.tipo === "tramitacao" ? (
+              <TramitacaoCard event={item} />
+            ) : (
+              <NormaCard event={item} />
+            )}
           </View>
         )}
         ListEmptyComponent={
-          votacoes.isPending ? (
-            <Carregando />
-          ) : votacoes.isError ? (
-            <EstadoDeErro aoTentarNovamente={() => void votacoes.refetch()} />
+          feed.isPending ? (
+            <LoadingState />
+          ) : feed.isError ? (
+            <ErrorState onRetry={() => void feed.refetch()} />
           ) : (
-            <EstadoVazio
-              icone="calendar-outline"
-              titulo="Nenhuma votação recente"
-              descricao="O plenário não registrou votações nominais nos últimos dias."
+            <EmptyState
+              icon="calendar-outline"
+              title="Nada recente por aqui"
+              description="O plenário não votou nada nos últimos meses. Em ano eleitoral o Congresso costuma desacelerar."
             />
           )
         }
       />
-    </SafeAreaView>
+    </Screen>
   )
 }
 
-type SecaoProps = {
-  parlamentares: IndiceParlamentar[]
-  temSeguidos: boolean
-  aoEscolher: () => void
+/** O header do FlashList não é virtualizado — a agenda entra com teto curto. */
+const VISIBLE_AGENDA = 5
+
+const AgendaSection = ({ agenda }: { agenda: EventoPauta[] }) => {
+  if (agenda.length === 0) return null
+
+  const remaining = agenda.length - VISIBLE_AGENDA
+
+  return (
+    <Section
+      title="Em pauta"
+      description="Sessões e reuniões deliberativas marcadas nas próximas duas semanas."
+      className="px-4 pt-2"
+    >
+      {agenda.slice(0, VISIBLE_AGENDA).map((event) => (
+        <PautaCard key={chaveDoEvento(event)} event={event} />
+      ))}
+      {remaining > 0 ? (
+        <Text className="text-xs text-muted-foreground">
+          E mais {remaining}{" "}
+          {remaining === 1 ? "sessão ou reunião marcada" : "sessões e reuniões marcadas"}{" "}
+          nas próximas duas semanas.
+        </Text>
+      ) : null}
+    </Section>
+  )
 }
 
-const SecaoMeusPoliticos = ({
+type MyParlamentaresSectionProps = {
+  parlamentares: IndiceParlamentar[]
+  hasFollowed: boolean
+  onChooseUf: () => void
+}
+
+const MyParlamentaresSection = ({
   parlamentares,
-  temSeguidos,
-  aoEscolher,
-}: SecaoProps) => {
+  hasFollowed,
+  onChooseUf,
+}: MyParlamentaresSectionProps) => {
   const router = useRouter()
 
   if (parlamentares.length === 0) {
     return (
       <View className="px-4">
-        <Surface variant="secondary" className="gap-3 p-4">
-          <Text className="text-base font-semibold text-foreground">
-            Escolha os seus políticos
-          </Text>
+        <Card title="Escolha os seus políticos">
           <Text className="text-sm text-muted-foreground">
             Diga o seu estado e siga quem você quer acompanhar. O app passa a
             mostrar o que eles votam e quanto gastam.
           </Text>
-          <Button size="sm" onPress={aoEscolher}>
+          <Button size="sm" onPress={onChooseUf}>
             Definir meu estado
           </Button>
-        </Surface>
+        </Card>
       </View>
     )
   }
 
   return (
-    <View className="gap-3">
-      <Text className="px-4 text-lg font-semibold text-foreground">
-        {temSeguidos ? "Quem você segue" : "Do seu estado"}
-      </Text>
-      <View className="gap-2 px-4">
+    <Section
+      title={hasFollowed ? "Quem você segue" : "Do seu estado"}
+      className="px-4"
+    >
+      <View className="gap-2">
         {parlamentares.map((parlamentar) => (
-          <CartaoParlamentar
+          <ParlamentarCard
             key={`${parlamentar.casa}:${parlamentar.id}`}
             parlamentar={parlamentar}
-            mostrarCargo
-            aoTocar={() =>
-              router.push(`/parlamentar/${parlamentar.casa}/${parlamentar.id}`)
-            }
+            showRole
+            onPress={() => router.push(routes.parlamentar(parlamentar))}
           />
         ))}
       </View>
-    </View>
+    </Section>
   )
 }

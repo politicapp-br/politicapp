@@ -4,6 +4,51 @@
 
 @source './node_modules/heroui-native/lib';
 
+/*
+ * Paleta da bandeira do Brasil (verde #009C3B, amarelo #FFDF00, azul #002776).
+ * Rampas geradas em OKLCH com matiz fixo por família (verde 147.6°,
+ * amarelo 98.7°, azul 261.8°) e escada perceptual de luminosidade.
+ * Âncoras: verde-600 ≈ verde da bandeira, amarelo-200 ≈ amarelo da bandeira,
+ * azul-950 ≈ azul da bandeira.
+ */
+@theme {
+  --color-verde-50: #ebffec;
+  --color-verde-100: #cfffd3;
+  --color-verde-200: #aaf8b3;
+  --color-verde-300: #86e895;
+  --color-verde-400: #57d26f;
+  --color-verde-500: #27b54f;
+  --color-verde-600: #029b3b;
+  --color-verde-700: #017f2f;
+  --color-verde-800: #036424;
+  --color-verde-900: #01511b;
+  --color-verde-950: #01330e;
+
+  --color-amarelo-50: #fffadb;
+  --color-amarelo-100: #fff2ad;
+  --color-amarelo-200: #fee242;
+  --color-amarelo-300: #ebce00;
+  --color-amarelo-400: #ceb40a;
+  --color-amarelo-500: #af9804;
+  --color-amarelo-600: #938001;
+  --color-amarelo-700: #796905;
+  --color-amarelo-800: #5f5302;
+  --color-amarelo-900: #4d4201;
+  --color-amarelo-950: #302900;
+
+  --color-azul-50: #f6f9fe;
+  --color-azul-100: #e8f1ff;
+  --color-azul-200: #d2e2fe;
+  --color-azul-300: #b4cffe;
+  --color-azul-400: #8bb4fe;
+  --color-azul-500: #5c95ff;
+  --color-azul-600: #447be4;
+  --color-azul-700: #3163c4;
+  --color-azul-800: #214da1;
+  --color-azul-900: #183d85;
+  --color-azul-950: #09255a;
+}
+
 @layer theme {
   :root {
     @variant light {
@@ -24,10 +69,10 @@
       --default: var(--color-neutral-100);
       --default-foreground: var(--eclipse);
 
-      --accent: var(--color-neutral-950);
+      --accent: var(--color-azul-950);
       --accent-foreground: var(--snow);
 
-      --brand: #123b9c;
+      --brand: var(--color-azul-800);
       --brand-foreground: #ffffff;
 
       --field-background: var(--default);
@@ -35,10 +80,10 @@
       --field-placeholder: var(--muted);
       --field-border: transparent;
 
-      --success: oklch(0.5503 0.1244 153.56);
+      --success: var(--color-verde-600);
       --success-foreground: var(--snow);
 
-      --warning: oklch(0.7186 0.1521 84.5);
+      --warning: var(--color-amarelo-600);
       --warning-foreground: var(--eclipse);
 
       --danger: oklch(0.6259 0.1908 29.19);
@@ -50,6 +95,12 @@
       --border: var(--color-neutral-200);
       --divider: var(--color-neutral-400);
       --link: var(--brand);
+
+      --chart-1: var(--color-verde-600);
+      --chart-2: var(--color-azul-700);
+      --chart-3: var(--color-amarelo-600);
+      --chart-4: var(--color-azul-800);
+      --chart-5: var(--color-verde-800);
     }
 
     @variant dark {
@@ -70,21 +121,21 @@
       --default: var(--color-neutral-900);
       --default-foreground: var(--snow);
 
-      --accent: var(--color-neutral-50);
-      --accent-foreground: var(--eclipse);
+      --accent: var(--color-azul-100);
+      --accent-foreground: var(--color-azul-950);
 
-      --brand: #5b8cff;
-      --brand-foreground: #04102e;
+      --brand: var(--color-azul-500);
+      --brand-foreground: var(--color-azul-950);
 
       --field-background: var(--default);
       --field-foreground: var(--foreground);
       --field-placeholder: var(--muted);
       --field-border: transparent;
 
-      --success: oklch(0.6402 0.1503 154.2);
+      --success: var(--color-verde-500);
       --success-foreground: var(--eclipse);
 
-      --warning: oklch(0.8355 0.1543 85.2);
+      --warning: var(--color-amarelo-300);
       --warning-foreground: var(--eclipse);
 
       --danger: oklch(0.6598 0.1835 27.5);
@@ -96,6 +147,12 @@
       --border: var(--color-neutral-800);
       --divider: var(--color-neutral-600);
       --link: var(--brand);
+
+      --chart-1: var(--color-verde-600);
+      --chart-2: var(--color-azul-600);
+      --chart-3: var(--color-amarelo-600);
+      --chart-4: var(--color-azul-700);
+      --chart-5: var(--color-verde-700);
     }
   }
 }
@@ -105,5 +162,10 @@
   --color-foreground-secondary: var(--foreground-secondary);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --font-title: "BricolageGrotesque_800ExtraBold";
 }

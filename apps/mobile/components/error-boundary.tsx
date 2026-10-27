@@ -4,21 +4,21 @@ import { Component, type ErrorInfo, type ReactNode } from "react"
 import { Text, View } from "react-native"
 
 type Props = { children: ReactNode }
-type State = { falhou: boolean }
+type State = { hasError: boolean }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { falhou: false }
+  state: State = { hasError: false }
 
   static getDerivedStateFromError(): State {
-    return { falhou: true }
+    return { hasError: true }
   }
 
-  componentDidCatch(erro: Error, info: ErrorInfo) {
-    Sentry.captureException(erro, { extra: { pilha: info.componentStack } })
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } })
   }
 
   render() {
-    if (!this.state.falhou) return this.props.children
+    if (!this.state.hasError) return this.props.children
 
     return (
       <View className="flex-1 items-center justify-center gap-4 bg-background p-8">
@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <Text className="text-center text-sm text-muted-foreground">
           O erro foi registrado. Tente abrir a tela de novo.
         </Text>
-        <Button onPress={() => this.setState({ falhou: false })}>
+        <Button onPress={() => this.setState({ hasError: false })}>
           Tentar de novo
         </Button>
       </View>

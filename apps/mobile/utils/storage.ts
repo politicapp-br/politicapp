@@ -2,18 +2,18 @@ import { createMMKV } from "react-native-mmkv"
 
 export const storage = createMMKV()
 
-const TEMA = "app_tema"
-const ONBOARDING = "onboarding_concluido"
+const THEME_KEY = "theme"
+const ONBOARDING_KEY = "onboarding_done"
 
-export type TemaGuardado = "light" | "dark" | "system"
+export type StoredTheme = "light" | "dark" | "system"
 
-export const lerTema = (): TemaGuardado | null => {
-  const tema = storage.getString(TEMA)
-  return tema === "light" || tema === "dark" || tema === "system" ? tema : null
+export const readStoredTheme = (): StoredTheme | null => {
+  const theme = storage.getString(THEME_KEY)
+  return theme === "light" || theme === "dark" || theme === "system" ? theme : null
 }
 
-export const guardarTema = (tema: TemaGuardado) => storage.set(TEMA, tema)
+export const saveTheme = (theme: StoredTheme) => storage.set(THEME_KEY, theme)
 
-export const onboardingConcluido = () => storage.getString(ONBOARDING) === "true"
+export const isOnboardingDone = () => storage.getString(ONBOARDING_KEY) === "true"
 
-export const concluirOnboarding = () => storage.set(ONBOARDING, "true")
+export const markOnboardingDone = () => storage.set(ONBOARDING_KEY, "true")

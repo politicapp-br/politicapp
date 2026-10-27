@@ -4,74 +4,74 @@ import { Text, View } from "react-native"
 import { Icon, type IconName } from "@/components/icon"
 import { useColors } from "@/hooks/use-colors"
 
-export const Carregando = ({ rotulo }: { rotulo?: string }) => (
+export const LoadingState = ({ label }: { label?: string }) => (
   <View className="flex-1 items-center justify-center gap-3 p-8">
     <Spinner />
-    {rotulo ? (
-      <Text className="text-sm text-muted-foreground">{rotulo}</Text>
+    {label ? (
+      <Text className="text-sm text-muted-foreground">{label}</Text>
     ) : null}
   </View>
 )
 
-type EstadoVazioProps = {
-  icone?: IconName
-  titulo: string
-  descricao?: string
-  acao?: { rotulo: string; aoTocar: () => void }
+type EmptyStateProps = {
+  icon?: IconName
+  title: string
+  description?: string
+  action?: { label: string; onPress: () => void }
 }
 
-export const EstadoVazio = ({
-  icone = "document-text-outline",
-  titulo,
-  descricao,
-  acao,
-}: EstadoVazioProps) => {
+export const EmptyState = ({
+  icon = "document-text-outline",
+  title,
+  description,
+  action,
+}: EmptyStateProps) => {
   const { muted } = useColors()
 
   return (
     <View className="items-center justify-center gap-3 px-8 py-12">
-      <Icon name={icone} size={32} color={muted} />
+      <Icon name={icon} size={32} color={muted} />
       <Text className="text-center text-base font-semibold text-foreground">
-        {titulo}
+        {title}
       </Text>
-      {descricao ? (
+      {description ? (
         <Text className="text-center text-sm text-muted-foreground">
-          {descricao}
+          {description}
         </Text>
       ) : null}
-      {acao ? (
-        <Button size="sm" variant="secondary" onPress={acao.aoTocar}>
-          {acao.rotulo}
+      {action ? (
+        <Button size="sm" variant="secondary" onPress={action.onPress}>
+          {action.label}
         </Button>
       ) : null}
     </View>
   )
 }
 
-type ErroProps = {
-  titulo?: string
-  descricao?: string
-  aoTentarNovamente?: () => void
+type ErrorStateProps = {
+  title?: string
+  description?: string
+  onRetry?: () => void
 }
 
-export const EstadoDeErro = ({
-  titulo = "Não foi possível carregar",
-  descricao = "Os dados vêm de APIs públicas do governo, que às vezes ficam fora do ar.",
-  aoTentarNovamente,
-}: ErroProps) => {
+export const ErrorState = ({
+  title = "Não foi possível carregar",
+  description = "Os dados vêm de APIs públicas do governo, que às vezes ficam fora do ar.",
+  onRetry,
+}: ErrorStateProps) => {
   const { dangerColor } = useColors()
 
   return (
     <View className="items-center justify-center gap-3 px-8 py-12">
       <Icon name="cloud-offline-outline" size={32} color={dangerColor} />
       <Text className="text-center text-base font-semibold text-foreground">
-        {titulo}
+        {title}
       </Text>
       <Text className="text-center text-sm text-muted-foreground">
-        {descricao}
+        {description}
       </Text>
-      {aoTentarNovamente ? (
-        <Button size="sm" variant="secondary" onPress={aoTentarNovamente}>
+      {onRetry ? (
+        <Button size="sm" variant="secondary" onPress={onRetry}>
           Tentar novamente
         </Button>
       ) : null}

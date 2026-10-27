@@ -1,14 +1,14 @@
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister"
 import { QueryClient } from "@tanstack/react-query"
 
-import { TEMPO } from "@/services/api/query-keys"
+import { DURATION } from "@/services/api/query-keys"
 import { storage } from "@/utils/storage"
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: TEMPO.hora,
-      gcTime: TEMPO.dia * 7,
+      staleTime: DURATION.hour,
+      gcTime: DURATION.day * 7,
       retry: 2,
       refetchOnWindowFocus: false,
     },
@@ -17,14 +17,14 @@ export const queryClient = new QueryClient({
 
 export const persister = createSyncStoragePersister({
   storage: {
-    getItem: (chave) => storage.getString(chave) ?? null,
-    setItem: (chave, valor) => storage.set(chave, valor),
-    removeItem: (chave) => storage.remove(chave),
+    getItem: (key) => storage.getString(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+    removeItem: (key) => storage.remove(key),
   },
   key: "politicapp-cache",
 })
 
-export const opcoesDePersistencia = {
+export const persistOptions = {
   persister,
-  maxAge: TEMPO.dia * 7,
+  maxAge: DURATION.day * 7,
 }

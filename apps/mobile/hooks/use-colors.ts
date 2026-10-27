@@ -2,66 +2,66 @@ import { useThemeColor } from "heroui-native"
 import { useColorScheme } from "react-native"
 import { useUniwind } from "uniwind"
 
-type TemaResolvido = "light" | "dark"
+type ResolvedTheme = "light" | "dark"
 
-const CORES_PADRAO = {
+const DEFAULT_COLORS = {
   light: {
-    brandColor: "#123B9C",
+    brandColor: "#214DA1",
     brandForeground: "#FFFFFF",
-    accentColor: "#171717",
+    accentColor: "#09255A",
     dangerColor: "#DC2626",
-    successColor: "#16A34A",
+    successColor: "#029B3B",
     background: "#FFFFFF",
     foreground: "#171717",
     muted: "#737373",
     defaultColor: "#F5F5F5",
-    warningColor: "#CA8A04",
+    warningColor: "#938001",
     surface: "#F5F5F5",
     border: "#E5E5E5",
   },
   dark: {
-    brandColor: "#5B8CFF",
-    brandForeground: "#04102E",
-    accentColor: "#FAFAFA",
+    brandColor: "#5C95FF",
+    brandForeground: "#09255A",
+    accentColor: "#E8F1FF",
     dangerColor: "#EF4444",
-    successColor: "#22C55E",
+    successColor: "#27B54F",
     background: "#000000",
     foreground: "#FAFAFA",
     muted: "#A3A3A3",
     defaultColor: "#171717",
-    warningColor: "#F5C542",
+    warningColor: "#EBCE00",
     surface: "#1C1C1E",
     border: "#262626",
   },
 } as const
 
-const sanitizar = (valor: string, padrao: string) =>
-  !valor || valor === "invalid" ? padrao : valor
+const withFallback = (value: string, fallback: string) =>
+  !value || value === "invalid" ? fallback : value
 
 export const useColors = () => {
   const { theme, hasAdaptiveThemes } = useUniwind()
-  const esquemaDoSistema = useColorScheme()
-  const temaAtual: TemaResolvido = hasAdaptiveThemes
-    ? esquemaDoSistema === "dark"
+  const systemScheme = useColorScheme()
+  const currentTheme: ResolvedTheme = hasAdaptiveThemes
+    ? systemScheme === "dark"
       ? "dark"
       : "light"
     : theme === "dark"
       ? "dark"
       : "light"
-  const padrao = CORES_PADRAO[temaAtual]
+  const defaults = DEFAULT_COLORS[currentTheme]
 
   return {
-    brandColor: padrao.brandColor,
-    brandForeground: padrao.brandForeground,
-    accentColor: sanitizar(useThemeColor("accent"), padrao.accentColor),
-    dangerColor: sanitizar(useThemeColor("danger"), padrao.dangerColor),
-    successColor: sanitizar(useThemeColor("success"), padrao.successColor),
-    warningColor: sanitizar(useThemeColor("warning"), padrao.warningColor),
-    background: sanitizar(useThemeColor("background"), padrao.background),
-    foreground: sanitizar(useThemeColor("foreground"), padrao.foreground),
-    muted: sanitizar(useThemeColor("muted"), padrao.muted),
-    defaultColor: sanitizar(useThemeColor("default"), padrao.defaultColor),
-    surface: sanitizar(useThemeColor("surface"), padrao.surface),
-    border: sanitizar(useThemeColor("border"), padrao.border),
+    brandColor: defaults.brandColor,
+    brandForeground: defaults.brandForeground,
+    accentColor: withFallback(useThemeColor("accent"), defaults.accentColor),
+    dangerColor: withFallback(useThemeColor("danger"), defaults.dangerColor),
+    successColor: withFallback(useThemeColor("success"), defaults.successColor),
+    warningColor: withFallback(useThemeColor("warning"), defaults.warningColor),
+    background: withFallback(useThemeColor("background"), defaults.background),
+    foreground: withFallback(useThemeColor("foreground"), defaults.foreground),
+    muted: withFallback(useThemeColor("muted"), defaults.muted),
+    defaultColor: withFallback(useThemeColor("default"), defaults.defaultColor),
+    surface: withFallback(useThemeColor("surface"), defaults.surface),
+    border: withFallback(useThemeColor("border"), defaults.border),
   }
 }

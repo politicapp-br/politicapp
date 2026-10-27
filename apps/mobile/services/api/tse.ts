@@ -7,18 +7,19 @@ import {
 } from "@politicapp/data"
 import { z } from "zod"
 
-import { buscarJson } from "./http"
+import { fetchJson } from "./http"
 
 const API = "https://divulgacandcontas.tse.jus.br/divulga/rest/v1"
-const FONTE = "tse/divulgacand"
+const IMAGES_API = "https://divulgacandcontas.tse.jus.br/divulga/rest/arquivo/img"
+const SOURCE = "tse/divulgacand"
 
-export const ELEICAO_2026 = { ano: 2026, id: 20322002026 } as const
+export const ELECTION_2026 = { year: 2026, id: 20322002026 } as const
 
-const partidoSchema = z
+const partyApiSchema = z
   .object({ sigla: z.string().nullish() })
   .nullish()
 
-const candidatoSchemaApi = z.object({
+const candidatoApiSchema = z.object({
   id: z.number(),
   nomeUrna: z.string(),
   nomeCompleto: z.string().nullish(),
@@ -28,108 +29,147 @@ const candidatoSchemaApi = z.object({
   ufCandidatura: z.string().nullish(),
   totalDeBens: z.number().nullish(),
   st_REELEICAO: z.boolean().nullish(),
-  partido: partidoSchema,
+  partido: partyApiSchema,
 })
 
-const listaSchema = z.object({
-  candidatos: z.array(candidatoSchemaApi).nullish(),
+const candidatoListSchema = z.object({
+  candidatos: z.array(candidatoApiSchema).nullish(),
 })
 
-const SITUACOES: { padrao: RegExp; situacao: SituacaoCandidatura }[] = [
-  { padrao: /deferido com recurso|^deferido/i, situacao: "deferido" },
-  { padrao: /indeferido|cassad|inapto/i, situacao: "indeferido" },
-  { padrao: /aguardando|pendente|análise/i, situacao: "pendente" },
-  { padrao: /renúncia|renuncia/i, situacao: "renuncia" },
+const STATUS_PATTERNS: { pattern: RegExp; status: SituacaoCandidatura }[] = [
+  { pattern: /deferido com recurso|^deferido/i, status: "deferido" },
+  { pattern: /indeferido|cassad|inapto/i, status: "indeferido" },
+  { pattern: /aguardando|pendente|análise/i, status: "pendente" },
+  { pattern: /renúncia|renuncia/i, status: "renuncia" },
 ]
 
-const traduzirSituacao = (descricao: string | null | undefined): SituacaoCandidatura => {
-  if (!descricao) return "outro"
+const parseCandidacyStatus = (
+  description: string | null | undefined,
+): SituacaoCandidatura => {
+  if (!description) return "outro"
   return (
-    SITUACOES.find(({ padrao }) => padrao.test(descricao))?.situacao ?? "outro"
+    STATUS_PATTERNS.find(({ pattern }) => pattern.test(description))?.status ??
+    "outro"
   )
 }
 
-const paraCandidato = (
-  bruto: z.infer<typeof candidatoSchemaApi>,
+/**
+ * A listagem não traz `fotoUrl` (só o detalhe traz), mas o endpoint de imagem
+ * é montável: id da eleição + id do candidato + UF da candidatura ("BR" para
+ * presidente). Sem foto cadastrada o TSE devolve uma silhueta genérica.
+ */
+const candidatePhotoUrl = (id: number, uf: string) =>
+  `${IMAGES_API}/${ELECTION_2026.id}/${id}/${uf}`
+
+const toCandidato = (
+  raw: z.infer<typeof candidatoApiSchema>,
   cargo: Cargo,
   uf: string,
 ): Candidato => ({
-  id: String(bruto.id),
-  nomeUrna: bruto.nomeUrna,
-  nomeCompleto: bruto.nomeCompleto ?? bruto.nomeUrna,
-  numero: bruto.numero ? String(bruto.numero) : "—",
+  id: String(raw.id),
+  nomeUrna: raw.nomeUrna,
+  nomeCompleto: raw.nomeCompleto ?? raw.nomeUrna,
+  numero: raw.numero ? String(raw.numero) : "—",
   cargo,
-  uf: bruto.ufCandidatura ?? uf,
-  partido: bruto.partido?.sigla ?? "—",
-  coligacao: bruto.nomeColigacao ?? null,
-  fotoUrl: null,
-  situacao: traduzirSituacao(bruto.descricaoSituacao),
-  totalBens: bruto.totalDeBens ?? null,
-  reeleicao: bruto.st_REELEICAO ?? false,
+  uf: raw.ufCandidatura ?? uf,
+  partido: raw.partido?.sigla ?? "—",
+  coligacao: raw.nomeColigacao ?? null,
+  fotoUrl: candidatePhotoUrl(raw.id, raw.ufCandidatura ?? uf),
+  situacao: parseCandidacyStatus(raw.descricaoSituacao),
+  totalBens: raw.totalDeBens ?? null,
+  reeleicao: raw.st_REELEICAO ?? false,
 })
 
-export const listarCandidatos = async (
+export const fetchCandidates = async (
   uf: string,
   cargo: Cargo,
 ): Promise<Candidato[]> => {
-  const { ano, id } = ELEICAO_2026
-  const codigo = CARGO_CODIGO_TSE[cargo]
+  const { year, id } = ELECTION_2026
+  const cargoCode = CARGO_CODIGO_TSE[cargo]
 
-  const resposta = await buscarJson(
-    `${API}/candidatura/listar/${ano}/${uf}/${id}/${codigo}/candidatos`,
-    listaSchema,
-    { fonte: FONTE },
+  const response = await fetchJson(
+    `${API}/candidatura/listar/${year}/${uf}/${id}/${cargoCode}/candidatos`,
+    candidatoListSchema,
+    { source: SOURCE },
   )
 
-  return (resposta.candidatos ?? [])
-    .map((bruto) => paraCandidato(bruto, cargo, uf))
+  return (response.candidatos ?? [])
+    .map((raw) => toCandidato(raw, cargo, uf))
     .sort((a, b) => a.nomeUrna.localeCompare(b.nomeUrna, "pt-BR"))
 }
 
-const bemSchema = z.object({
+const assetApiSchema = z.object({
   descricao: z.string().nullish(),
   descricaoDeTipoDeBem: z.string().nullish(),
   valor: z.number().nullish(),
 })
 
-const detalheSchema = candidatoSchemaApi.extend({
+const previousElectionApiSchema = z.object({
+  nrAno: z.number().nullish(),
+  cargo: z.string().nullish(),
+  local: z.string().nullish(),
+  sgUe: z.string().nullish(),
+  partido: z.string().nullish(),
+  situacaoTotalizacao: z.string().nullish(),
+})
+
+const candidatoDetailsApiSchema = candidatoApiSchema.extend({
   dataDeNascimento: z.string().nullish(),
   ocupacao: z.string().nullish(),
   grauInstrucao: z.string().nullish(),
-  fotoUrl: z.string().nullish(),
-  bens: z.array(bemSchema).nullish(),
+  bens: z.array(assetApiSchema).nullish(),
+  gastoCampanha: z.number().nullish(),
+  gastoCampanha1T: z.number().nullish(),
+  gastoCampanha2T: z.number().nullish(),
+  eleicoesAnteriores: z.array(previousElectionApiSchema).nullish(),
 })
 
-export const buscarCandidato = async (
+export const fetchCandidate = async (
   uf: string,
   cargo: Cargo,
-  idCandidato: string,
+  candidateId: string,
 ): Promise<CandidatoDetalhe> => {
-  const { ano, id } = ELEICAO_2026
+  const { year, id } = ELECTION_2026
 
-  const bruto = await buscarJson(
-    `${API}/candidatura/buscar/${ano}/${uf}/${id}/candidato/${idCandidato}`,
-    detalheSchema,
-    { fonte: FONTE },
+  const raw = await fetchJson(
+    `${API}/candidatura/buscar/${year}/${uf}/${id}/candidato/${candidateId}`,
+    candidatoDetailsApiSchema,
+    { source: SOURCE },
   )
 
   return {
-    ...paraCandidato(bruto, cargo, uf),
-    fotoUrl: bruto.fotoUrl ?? null,
-    nascimento: bruto.dataDeNascimento ?? null,
-    ocupacao: bruto.ocupacao ?? null,
-    escolaridade: bruto.grauInstrucao ?? null,
+    ...toCandidato(raw, cargo, uf),
+    nascimento: raw.dataDeNascimento ?? null,
+    ocupacao: raw.ocupacao ?? null,
+    escolaridade: raw.grauInstrucao ?? null,
     propostaUrl: null,
-    bens: (bruto.bens ?? []).flatMap((bem) =>
-      bem.valor
+    bens: (raw.bens ?? []).flatMap((asset) =>
+      asset.valor
         ? [
             {
-              descricao: bem.descricao ?? "Bem declarado",
-              tipo: bem.descricaoDeTipoDeBem ?? "Outros",
-              valor: bem.valor,
+              descricao: asset.descricao ?? "Bem declarado",
+              tipo: asset.descricaoDeTipoDeBem ?? "Outros",
+              valor: asset.valor,
             },
           ]
         : [],
     ),
+    limiteGastos1T: raw.gastoCampanha1T || null,
+    limiteGastos2T: raw.gastoCampanha2T || null,
+    candidaturasAnteriores: (raw.eleicoesAnteriores ?? [])
+      .flatMap((previous) => {
+        // A lista inclui a própria candidatura atual — só o passado interessa.
+        if (!previous.nrAno || previous.nrAno >= year) return []
+        return [
+          {
+            ano: previous.nrAno,
+            cargo: previous.cargo ?? "—",
+            local: previous.sgUe ?? previous.local ?? "—",
+            partido: previous.partido ?? null,
+            resultado: previous.situacaoTotalizacao ?? null,
+          },
+        ]
+      })
+      .sort((a, b) => b.ano - a.ano),
   }
 }

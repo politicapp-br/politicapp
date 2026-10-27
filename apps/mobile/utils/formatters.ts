@@ -1,38 +1,39 @@
-const moeda = new Intl.NumberFormat("pt-BR", {
+const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
   maximumFractionDigits: 2,
 })
 
-const moedaCompacta = new Intl.NumberFormat("pt-BR", {
+const compactCurrency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
   notation: "compact",
   maximumFractionDigits: 1,
 })
 
-const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 })
+const integer = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 })
 
-export const formatarReais = (valor: number) => moeda.format(valor)
+export const formatCurrency = (value: number) => currency.format(value)
 
-export const formatarReaisCompacto = (valor: number) =>
-  Math.abs(valor) >= 10_000 ? moedaCompacta.format(valor) : moeda.format(valor)
+export const formatCurrencyCompact = (value: number) =>
+  Math.abs(value) >= 10_000 ? compactCurrency.format(value) : currency.format(value)
 
-export const formatarNumero = (valor: number) => inteiro.format(valor)
+export const formatNumber = (value: number) => integer.format(value)
 
-export const formatarPercentual = (valor: number, casas = 1) =>
-  `${valor.toFixed(casas).replace(".", ",")}%`
+export const formatPercent = (value: number, decimals = 1) =>
+  `${value.toFixed(decimals).replace(".", ",")}%`
 
-export const formatarVariacao = (fracao: number) => {
-  const percentual = Math.round(Math.abs(fracao) * 100)
-  if (percentual === 0) return "na mediana"
-  return fracao > 0 ? `${percentual}% acima` : `${percentual}% abaixo`
+/** Desvio relativo à mediana (0.12 → "12% acima"). */
+export const formatMedianDeviation = (fraction: number) => {
+  const percent = Math.round(Math.abs(fraction) * 100)
+  if (percent === 0) return "na mediana"
+  return fraction > 0 ? `${percent}% acima` : `${percent}% abaixo`
 }
 
-export const iniciais = (nome: string) =>
-  nome
+export const getInitials = (name: string) =>
+  name
     .split(" ")
-    .filter((parte) => parte.length > 2)
+    .filter((word) => word.length > 2)
     .slice(0, 2)
-    .map((parte) => parte[0]?.toLocaleUpperCase("pt-BR") ?? "")
+    .map((word) => word[0]?.toLocaleUpperCase("pt-BR") ?? "")
     .join("")

@@ -3,43 +3,43 @@ import { Image } from "expo-image"
 import { Text, View } from "react-native"
 
 import { cn } from "@/utils/cn"
-import { iniciais } from "@/utils/formatters"
-import { corDoPartido } from "@/utils/party-colors"
+import { getInitials } from "@/utils/formatters"
+import { getPartyColor } from "@/utils/party-colors"
 
 type Props = {
   parlamentar: Pick<Parlamentar, "nome" | "fotoUrl" | "partido">
-  tamanho?: number
+  size?: number
   className?: string
 }
 
-export const AvatarParlamentar = ({
+export const ParlamentarAvatar = ({
   parlamentar,
-  tamanho = 48,
+  size = 48,
   className,
 }: Props) => (
   <View
     className={cn("items-center justify-center overflow-hidden bg-surface", className)}
     style={{
-      width: tamanho,
-      height: tamanho,
-      borderRadius: tamanho / 2,
+      width: size,
+      height: size,
+      borderRadius: size / 2,
       borderWidth: 2,
-      borderColor: corDoPartido(parlamentar.partido),
+      borderColor: getPartyColor(parlamentar.partido),
     }}
   >
     {parlamentar.fotoUrl ? (
       <Image
         source={{ uri: parlamentar.fotoUrl }}
-        style={{ width: tamanho, height: tamanho }}
+        style={{ width: size, height: size }}
         contentFit="cover"
         transition={150}
       />
     ) : (
       <Text
         className="font-semibold text-muted-foreground"
-        style={{ fontSize: tamanho / 3 }}
+        style={{ fontSize: size / 3 }}
       >
-        {iniciais(parlamentar.nome)}
+        {getInitials(parlamentar.nome)}
       </Text>
     )}
   </View>

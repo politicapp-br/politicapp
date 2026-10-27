@@ -1,0 +1,15 @@
+appId: br.com.politicapp
+name: Onboarding escolhe o estado
+tags: [smoke]
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Qual é o seu estado?"
+    timeout: 20000
+- tapOn: ".*São Paulo.*"
+- tapOn: "Continuar"
+- extendedWaitUntil:
+    visible: "Início"
+    timeout: 20000
+- takeScreenshot: onboarding-concluido

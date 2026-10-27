@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "maestro": {
+      "command": "${HOME}/.maestro/bin/maestro",
+      "args": ["mcp", "--no-viewer"],
+      "env": {
+        "MAESTRO_CLI_NO_ANALYTICS": "1"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# Fecha o onboarding se ele aparecer (primeiro uso).
+appId: br.com.politicapp
+---
+- runFlow:
+    when:
+      visible: "Agora não"
+    commands:
+      - tapOn: "Agora não"

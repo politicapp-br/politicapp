@@ -1,0 +1,6 @@
+# Suíte E2E do Politicapp (Maestro). Roda com: e2e/devices.sh test
+# Flows em _subflows/ são reutilizados via runFlow e não rodam sozinhos.
+flows:
+  - "*.yaml"
+executionOrder:
+  continueOnFailure: true

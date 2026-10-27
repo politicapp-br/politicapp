@@ -1,0 +1,18 @@
+appId: br.com.politicapp
+name: Navega pelas quatro abas
+tags: [smoke]
+---
+- launchApp:
+    clearState: true
+- runFlow: _subflows/pular-onboarding.yaml
+- extendedWaitUntil:
+    visible: "Início"
+    timeout: 30000
+- tapOn: "Parlamentares"
+- takeScreenshot: aba-parlamentares
+- tapOn: "Eleições"
+- takeScreenshot: aba-eleicoes
+- tapOn: "Ajustes"
+- takeScreenshot: aba-ajustes
+- tapOn: "Início"
+- assertVisible: "Início"

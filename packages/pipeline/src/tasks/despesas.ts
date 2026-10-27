@@ -12,6 +12,8 @@ export const resumirDespesas = (
   const porParlamentar = new Map<string, LancamentoDespesa[]>()
 
   for (const lancamento of lancamentos) {
+    // Lançamento só com glosa não é gasto — entra no detalhe de fornecedores.
+    if (lancamento.valor <= 0) continue
     const atual = porParlamentar.get(lancamento.parlamentarId)
     if (atual) {
       atual.push(lancamento)

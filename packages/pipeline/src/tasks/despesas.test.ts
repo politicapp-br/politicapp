@@ -12,6 +12,8 @@ const lancamento = (
   fornecedor: "Posto",
   cnpjCpf: null,
   documentoUrl: null,
+  data: null,
+  glosa: 0,
   ...parcial,
 })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { lerCsv, lerCsvComCabecalho, numeroBr } from "./csv"
+import { lerCsv, lerCsvComCabecalho, numeroBr, projetarCsv } from "./csv"
 
 describe("lerCsv", () => {
   it("remove o BOM do início", () => {
@@ -69,5 +69,12 @@ describe("numeroBr", () => {
     expect(numeroBr("")).toBe(0)
     expect(numeroBr(undefined)).toBe(0)
     expect(numeroBr("abc")).toBe(0)
+  })
+})
+
+describe("projetarCsv", () => {
+  it("guarda só o que a projeção devolve e pula linha com colunas a menos", () => {
+    const csv = '\uFEFF"id";"nome";"extra"\n"1";"Ana";"x"\n"2";"Bia"\n"3";"Caio";"y"\n'
+    expect(projetarCsv(csv, (linha) => (linha.id === "3" ? null : linha.nome))).toEqual(["Ana"])
   })
 })

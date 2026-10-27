@@ -1,8 +1,11 @@
 const BOM = "﻿"
 
-export const lerCsv = (conteudo: string, separador = ";"): string[][] => {
+/**
+ * Linha a linha, para quem processa arquivos de dezenas de MB sem guardar
+ * todas as linhas de uma vez.
+ */
+export function* linhasCsv(conteudo: string, separador = ";"): Generator<string[]> {
   const texto = conteudo.startsWith(BOM) ? conteudo.slice(1) : conteudo
-  const linhas: string[][] = []
   let campo = ""
   let linha: string[] = []
   let dentroDeAspas = false
@@ -37,7 +40,7 @@ export const lerCsv = (conteudo: string, separador = ";"): string[][] => {
 
     if (caractere === "\n") {
       linha.push(campo.replace(/\r$/, ""))
-      linhas.push(linha)
+      yield linha
       linha = []
       campo = ""
       continue
@@ -48,10 +51,38 @@ export const lerCsv = (conteudo: string, separador = ";"): string[][] => {
 
   if (campo.length > 0 || linha.length > 0) {
     linha.push(campo.replace(/\r$/, ""))
-    linhas.push(linha)
+    yield linha
   }
+}
 
-  return linhas
+export const lerCsv = (conteudo: string, separador = ";"): string[][] => [
+  ...linhasCsv(conteudo, separador),
+]
+
+/**
+ * Como `lerCsvComCabecalho`, mas entrega cada linha a `projetar` e guarda só
+ * o que ela devolve — a linha inteira, com todas as colunas, nunca fica
+ * acumulada.
+ */
+export const projetarCsv = <T>(
+  conteudo: string,
+  projetar: (linha: Record<string, string>) => T | null,
+  separador = ";",
+): T[] => {
+  const linhas = linhasCsv(conteudo, separador)
+  const cabecalho = linhas.next().value
+  if (!cabecalho) return []
+  const resultado: T[] = []
+  for (const linha of linhas) {
+    if (linha.length !== cabecalho.length) continue
+    const registro: Record<string, string> = {}
+    for (let indice = 0; indice < cabecalho.length; indice += 1) {
+      registro[cabecalho[indice] ?? ""] = linha[indice] ?? ""
+    }
+    const projetado = projetar(registro)
+    if (projetado !== null) resultado.push(projetado)
+  }
+  return resultado
 }
 
 type OpcoesCsv = { separador?: string; pularLinhas?: number }

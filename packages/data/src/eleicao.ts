@@ -61,12 +61,26 @@ export const bemDeclaradoSchema = z.object({
 
 export type BemDeclarado = z.infer<typeof bemDeclaradoSchema>
 
+export const candidaturaAnteriorSchema = z.object({
+  ano: z.number(),
+  cargo: z.string(),
+  local: z.string(),
+  partido: z.string().nullable(),
+  resultado: z.string().nullable(),
+})
+
+export type CandidaturaAnterior = z.infer<typeof candidaturaAnteriorSchema>
+
 export const candidatoDetalheSchema = candidatoSchema.extend({
   nascimento: z.string().nullable(),
   ocupacao: z.string().nullable(),
   escolaridade: z.string().nullable(),
   bens: z.array(bemDeclaradoSchema),
   propostaUrl: z.string().nullable(),
+  /** Teto de gastos da campanha fixado pelo TSE para o cargo. */
+  limiteGastos1T: z.number().nullable(),
+  limiteGastos2T: z.number().nullable(),
+  candidaturasAnteriores: z.array(candidaturaAnteriorSchema),
 })
 
 export type CandidatoDetalhe = z.infer<typeof candidatoDetalheSchema>

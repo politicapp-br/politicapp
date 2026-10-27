@@ -29,6 +29,7 @@ export const resumoDespesasSchema = z.object({
 export type ResumoDespesas = z.infer<typeof resumoDespesasSchema>
 
 export const TIPO_DESPESA_CURTO: Record<string, string> = {
+  // Câmara (cota parlamentar)
   "MANUTENÇÃO DE ESCRITÓRIO DE APOIO À ATIVIDADE PARLAMENTAR": "Escritório",
   "DIVULGAÇÃO DA ATIVIDADE PARLAMENTAR": "Divulgação",
   "COMBUSTÍVEIS E LUBRIFICANTES.": "Combustível",
@@ -46,10 +47,33 @@ export const TIPO_DESPESA_CURTO: Record<string, string> = {
   "SERVIÇO DE SEGURANÇA PRESTADO POR EMPRESA ESPECIALIZADA.": "Segurança",
   "ASSINATURA DE PUBLICAÇÕES": "Assinaturas",
   "AQUISIÇÃO DE MATERIAL DE ESCRITÓRIO.": "Material de escritório",
+  // Senado (CEAPS)
+  "Aluguel de imóveis para escritório político, compreendendo despesas concernentes a eles":
+    "Aluguel de escritório",
+  "Aquisição de material de consumo para uso no escritório político, inclusive aquisição ou locação de software, despesas postais, aquisição de publicações, locação de móveis e de equipamentos":
+    "Material de escritório",
+  "Contratação de consultorias, assessorias, pesquisas, trabalhos técnicos e outros serviços de apoio ao exercício do mandato parlamentar":
+    "Consultoria",
+  "Locomoção, hospedagem, alimentação, combustíveis e lubrificantes":
+    "Locomoção e hospedagem",
+  "Passagens aéreas, aquáticas e terrestres nacionais": "Passagens",
+  "Serviços de Segurança Privada": "Segurança",
 }
 
+// O CEAPS traz tipos com espaço e ponto final sobrando, e a caixa difere da
+// usada pela Câmara — a busca é feita sobre a forma normalizada.
+const normalizar = (tipo: string) =>
+  tipo.trim().replace(/\.$/, "").toLocaleUpperCase("pt-BR")
+
+const CURTO_POR_TIPO_NORMALIZADO = new Map(
+  Object.entries(TIPO_DESPESA_CURTO).map(([tipo, curto]) => [
+    normalizar(tipo),
+    curto,
+  ]),
+)
+
 export const tipoDespesaCurto = (tipo: string) =>
-  TIPO_DESPESA_CURTO[tipo] ?? capitalizar(tipo)
+  CURTO_POR_TIPO_NORMALIZADO.get(normalizar(tipo)) ?? capitalizar(tipo)
 
 const capitalizar = (texto: string) => {
   const limpo = texto.trim().toLocaleLowerCase("pt-BR").replace(/\.$/, "")

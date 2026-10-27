@@ -9,6 +9,11 @@ export const CARGO_LABEL: Record<Casa, string> = {
   senado: "Senador(a)",
 }
 
+export const CASA_LABEL: Record<Casa, string> = {
+  camara: "Câmara",
+  senado: "Senado",
+}
+
 export const parlamentarSchema = z.object({
   casa: casaSchema,
   id: z.string(),

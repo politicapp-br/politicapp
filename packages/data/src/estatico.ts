@@ -1,9 +1,33 @@
 import { z } from "zod"
 
-import { resumoDespesasSchema } from "./despesa"
+import { eventoFeedSchema } from "./evento"
 import { casaSchema, parlamentarSchema } from "./parlamentar"
+import { congressoSchema, subsidioSchema } from "./remuneracao"
+import { votacaoSchema } from "./votacao"
 
-export const DATA_VERSION = "v1"
+/**
+ * Situação de cada etapa do pipeline. `verificadoEm` é a última vez que a
+ * etapa rodou com sucesso — o arquivo pode ter conteúdo mais antigo se o dado
+ * não mudou desde então. Etapa que falhou mantém o `verificadoEm` anterior.
+ */
+export const etapaManifestSchema = z.object({
+  ok: z.boolean(),
+  verificadoEm: z.string().nullable(),
+  erro: z.string().nullable(),
+})
+
+export type EtapaManifest = z.infer<typeof etapaManifestSchema>
+
+/** Catálogo do que está publicado: arquivos únicos e coleções. */
+export const manifestSchema = z.object({
+  geradoEm: z.string(),
+  ano: z.number(),
+  etapas: z.record(z.string(), etapaManifestSchema),
+  arquivos: z.array(z.object({ caminho: z.string(), bytes: z.number() })),
+  colecoes: z.array(z.object({ nome: z.string(), itens: z.number() })),
+})
+
+export type Manifest = z.infer<typeof manifestSchema>
 
 export const distribuicaoSchema = z.object({
   mediana: z.number(),
@@ -56,13 +80,42 @@ export const indiceSchema = z.object({
 
 export type Indice = z.infer<typeof indiceSchema>
 
-export const despesasEstaticasSchema = z.object({
+/**
+ * Feed de votações pré-computado. Descobrir quais votações têm voto nominal
+ * exige varrer centenas de páginas da API da Câmara — trabalho de pipeline,
+ * não de celular.
+ */
+export const votacoesEstaticasSchema = z.object({
   geradoEm: z.string(),
   ano: z.number(),
-  resumos: z.array(resumoDespesasSchema),
+  /** Identifica o conjunto de votações; a seção `votos` dos shards carrega o mesmo. */
+  conjunto: z.string(),
+  votacoes: z.array(votacaoSchema),
 })
 
-export type DespesasEstaticas = z.infer<typeof despesasEstaticasSchema>
+export type VotacoesEstaticas = z.infer<typeof votacoesEstaticasSchema>
+
+/**
+ * Feed da home: agenda do que vem aí e votações que já aconteceram, das duas
+ * casas, num arquivo só. Montado no pipeline porque cruza várias fontes.
+ */
+export const feedEstaticoSchema = z.object({
+  geradoEm: z.string(),
+  ano: z.number(),
+  eventos: z.array(eventoFeedSchema),
+})
+
+export type FeedEstatico = z.infer<typeof feedEstaticoSchema>
+
+/** Subsídio e custo do Congresso; custos por parlamentar ficam no shard. */
+export const remuneracaoEstaticaSchema = z.object({
+  geradoEm: z.string(),
+  ano: z.number(),
+  subsidio: subsidioSchema,
+  congresso: congressoSchema.nullish(),
+})
+
+export type RemuneracaoEstatica = z.infer<typeof remuneracaoEstaticaSchema>
 
 export const posicaoNaDistribuicao = (
   valor: number,
